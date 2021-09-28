@@ -244,8 +244,8 @@ var playerState = PlayerState{
     .animationFrame = 0,
 };
 
-const playerAcceleration: f32 = 2.5; // (pixels per frame) per frame
-const friction: f32 = 0.33; // (pixels per frame) per frame
+const playerAcceleration: f32 = 3.5; // (pixels per frame) per frame
+const friction: f32 = 0.25; // (pixels per frame) per frame
 const maxSpeed: f32 = 6.0; // pixels per frame
 
 fn updatePlayer(
