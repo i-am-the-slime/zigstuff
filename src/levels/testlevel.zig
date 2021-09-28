@@ -36,8 +36,8 @@ const Level = struct {
         for (self.spriteLayer.sprites) |sprite| {
             srcRect.x = sprite.tile.srcX * 16;
             srcRect.y = sprite.tile.srcY * 16;
-            dstRect.x = sprite.posX;
-            dstRect.y = sprite.posY;
+            dstRect.x = @floatToInt(c_int, sprite.posX);
+            dstRect.y = @floatToInt(c_int, sprite.posY);
             _ = c.SDL_RenderCopy(renderer, spriteTexture, &srcRect, &dstRect);
         }
     }
@@ -212,14 +212,21 @@ const Vec2 = struct {
     x: f32,
     y: f32,
     pub fn len(self: @This()) f32 {
-        return std.math.sqrt(self.x + self.y);
+        return std.math.sqrt((self.x * self.x) + (self.y * self.y));
+    }
+    pub fn normalise(self: *@This()) void {
+        const length = self.len();
+        if (length != 0) {
+            self.x /= length;
+            self.y /= length;
+        }
     }
 };
 
 const PlayerState = struct {
-    directionVec: *Vec2,
+    directionVec: Vec2,
     direction: Direction,
-    speed: *Vec2,
+    speed: Vec2,
     animationFrame: c_int,
 };
 
@@ -230,15 +237,16 @@ var playerSprite = graphics.mkSprite(
     updatePlayer,
 );
 
-var startDirection = Vec2{ .x = 0, .y = 0 };
-var startSpeed = Vec2{ .x = 0, .y = 0 };
-
 var playerState = PlayerState{
-    .directionVec = &startDirection,
+    .directionVec = Vec2{ .x = 0, .y = 0 },
     .direction = Direction.Down,
-    .speed = &startSpeed,
+    .speed = Vec2{ .x = 0, .y = 0 },
     .animationFrame = 0,
 };
+
+const playerAcceleration: f32 = 2.5; // (pixels per frame) per frame
+const friction: f32 = 0.33; // (pixels per frame) per frame
+const maxSpeed: f32 = 6.0; // pixels per frame
 
 fn updatePlayer(
     sprite: *graphics.Sprite,
@@ -247,18 +255,39 @@ fn updatePlayer(
     const previousDirection = playerState.direction;
     playerState.directionVec.x = 0;
     playerState.directionVec.y = 0;
-    if (inputState.walkingDown) playerState.directionVec.y += 1;
     if (inputState.walkingUp) playerState.directionVec.y -= 1;
+    if (inputState.walkingDown) playerState.directionVec.y += 1;
     if (inputState.walkingLeft) playerState.directionVec.x -= 1;
     if (inputState.walkingRight) playerState.directionVec.x += 1;
+    playerState.directionVec.normalise();
     // Calculate the new direction
-    playerState.direction = vec2ToDirection(playerState.directionVec) orelse previousDirection;
+    playerState.direction = vec2ToDirection(&playerState.directionVec) orelse previousDirection;
     switch (playerState.direction) {
         Direction.Down => sprite.tile.srcX = 0,
         Direction.Up => sprite.tile.srcX = 2,
         Direction.Left => sprite.tile.srcX = 4,
         Direction.Right => sprite.tile.srcX = 6,
     }
+    // Calculate the new position
+    // 1 px/frame + 1 px/frame * 0.1 ((px/frame)/frame)
+    playerState.speed.x += std.math.clamp(
+        playerState.speed.x +
+            playerAcceleration * playerState.directionVec.x,
+        -maxSpeed,
+        maxSpeed,
+    );
+    playerState.speed.y += std.math.clamp(
+        playerState.speed.y +
+            playerAcceleration * playerState.directionVec.y,
+        -maxSpeed,
+        maxSpeed,
+    );
+
+    playerState.speed.x *= friction;
+    playerState.speed.y *= friction;
+
+    sprite.posX += playerState.speed.x;
+    sprite.posY += playerState.speed.y;
 }
 
 const Direction = enum { Up, Down, Left, Right };

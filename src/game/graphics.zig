@@ -2,8 +2,8 @@ const constants = @import("../constants.zig");
 const input = @import("input.zig");
 
 pub const Sprite = struct {
-    posX: c_int,
-    posY: c_int,
+    posX: f32,
+    posY: f32,
     tile: *Tile,
     updateFn: fn (self: *@This(), inputState: input.State) void,
     pub fn update(self: *@This(), inputState: input.State) void {

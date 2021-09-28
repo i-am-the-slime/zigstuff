@@ -2,8 +2,8 @@ const c = @import("../sdl.zig").c;
 const std = @import("std");
 
 pub const State = packed struct {
-    walkingDown: bool = false,
     walkingUp: bool = false,
+    walkingDown: bool = false,
     walkingLeft: bool = false,
     walkingRight: bool = false,
 };

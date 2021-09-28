@@ -153,6 +153,7 @@ const Renderer = struct {
         testlevel.testlevel.render(self.renderer, self.backgroundTexture, self.spriteTexture);
         c.SDL_RenderPresent(self.renderer);
 
-        c.SDL_Delay(@floatToInt(u32, targetDeltaBetweenFrames - self.deltaTime));
+        const delayBy = std.math.max(0, targetDeltaBetweenFrames - self.deltaTime);
+        c.SDL_Delay(@floatToInt(u32, delayBy));
     }
 };
