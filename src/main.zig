@@ -3,45 +3,44 @@ const assert = @import("std").debug.assert;
 const std = @import("std");
 const testlevel = @import("levels/testlevel.zig");
 const input = @import("game/input.zig");
+const GameMidi = @import("game/game_midi.zig").GameMidi;
 
 pub fn main() !void {
+    var allocator = std.testing.allocator;
+    var gameInput = try input.GameInput.init(allocator);
+    defer gameInput.deinit();
     if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
         c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
         return error.SDLInitializationFailed;
     }
     defer c.SDL_Quit();
 
+    _ = try GameMidi(input.GameInput).init(
+        allocator,
+        &input.onMidiMessage,
+        &gameInput,
+    );
+
     var rend = try Renderer.init();
     defer rend.deinit();
-    var events = input.EventArray{ null, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined };
     mainloop: while (true) {
-        var eventIndex: u8 = 0;
         var event: c.SDL_Event = undefined;
-        var inputState = input.State{};
         while (c.SDL_PollEvent(&event) != 0) {
             switch (event.@"type") {
-                c.SDL_QUIT => {
-                    break :mainloop;
-                },
-                else => {
-                    events[eventIndex] = &event;
-                    eventIndex += 1;
-                    if (eventIndex >= 10) {
-                        std.debug.print("\nEvents: {s}, next event: {}", .{ events, event });
-                        @panic("More than 10 events from SDL");
-                    }
-                },
+                c.SDL_QUIT => break :mainloop,
+                else => {},
             }
         }
-        events[eventIndex] = null;
-        input.updateInputState(&events, &inputState);
-        rend.update(inputState);
+        gameInput.updateInputState();
+        rend.update(gameInput.inputState);
         rend.render();
     }
 }
 
+const FPS = 60.0;
+
 const Renderer = struct {
-    const targetDeltaBetweenFrames: f64 = 1.0 / 60.0;
+    const targetDeltaBetweenFrames: f64 = 1.0 / FPS;
     frame: u8 = 0,
     now: u64 = undefined,
     last: u64 = 0,
@@ -152,7 +151,6 @@ const Renderer = struct {
         _ = c.SDL_RenderClear(self.renderer);
         testlevel.testlevel.render(self.renderer, self.backgroundTexture, self.spriteTexture);
         c.SDL_RenderPresent(self.renderer);
-
         const delayBy = std.math.max(0, targetDeltaBetweenFrames - self.deltaTime);
         c.SDL_Delay(@floatToInt(u32, delayBy));
     }

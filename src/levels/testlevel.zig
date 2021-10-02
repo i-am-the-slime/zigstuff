@@ -43,16 +43,16 @@ const Level = struct {
     }
 };
 
-const wallTopLeft = graphics.mkTile(0, 13);
-const wallTop = graphics.mkTile(1, 13);
-const wallTopRight = graphics.mkTile(2, 13);
-const wallLeft = graphics.mkTile(0, 14);
-const floor = graphics.mkTile(1, 14);
-const wallRight = graphics.mkTile(2, 14);
-const wallBottomLeft = graphics.mkTile(0, 15);
-const wallBottom = graphics.mkTile(1, 15);
-const wallBottomRight = graphics.mkTile(2, 15);
-const doorTop = graphics.mkTile(4, 15);
+const wallTopLeft = graphics.mkTile(0, 13, graphics.collideAll);
+const wallTop = graphics.mkTile(1, 13, graphics.collideAll);
+const wallTopRight = graphics.mkTile(2, 13, graphics.collideAll);
+const wallLeft = graphics.mkTile(0, 14, graphics.collideAll);
+const floor = graphics.mkTile(1, 14, null);
+const wallRight = graphics.mkTile(2, 14, graphics.collideAll);
+const wallBottomLeft = graphics.mkTile(0, 15, graphics.collideAll);
+const wallBottom = graphics.mkTile(1, 15, graphics.collideAll);
+const wallBottomRight = graphics.mkTile(2, 15, graphics.collideAll);
+const doorLockedTop = graphics.mkTile(4, 15, graphics.collideAll);
 
 var backgroundObjects = [_]graphics.Object{
     // First line
@@ -64,7 +64,7 @@ var backgroundObjects = [_]graphics.Object{
     graphics.mkObject(80, 0, &wallTop),
     graphics.mkObject(96, 0, &wallTop),
     graphics.mkObject(112, 0, &wallTop),
-    graphics.mkObject(128, 0, &doorTop),
+    graphics.mkObject(128, 0, &doorLockedTop),
     graphics.mkObject(144, 0, &wallTop),
     graphics.mkObject(160, 0, &wallTop),
     graphics.mkObject(176, 0, &wallTop),
@@ -206,13 +206,13 @@ var backgroundObjects = [_]graphics.Object{
     graphics.mkObject(240, 128, &wallBottomRight),
 };
 
-var playerLookingDown = graphics.mkTile(0, 0);
+var playerLookingDown = graphics.mkTile(0, 0, null);
 
 const Vec2 = struct {
     x: f32,
     y: f32,
     pub fn len(self: @This()) f32 {
-        return std.math.sqrt((self.x * self.x) + (self.y * self.y));
+        return @sqrt((self.x * self.x) + (self.y * self.y));
     }
     pub fn normalise(self: *@This()) void {
         const length = self.len();
@@ -245,8 +245,112 @@ var playerState = PlayerState{
 };
 
 const playerAcceleration: f32 = 4.0; // (pixels per frame) per frame
-const friction: f32 = 0.25; // (pixels per frame) per frame
-const maxSpeed: f32 = 8.0; // pixels per frame
+const friction: f32 = 0.4; // (pixels per frame) per frame
+const maxSpeed: f32 = 10.0; // pixels per frame
+
+/// A tuple of a pointer to a tile in the sprite sheet and its duration in frames.
+const Keyframe = struct {
+    /// The x position in the sprite sheet
+    srcX: u8,
+    /// The y position in the sprite sheet
+    srcY: u8,
+    /// For how many frames (assuming 60fps) this sprite should be displayed
+    frameDuration: u8,
+};
+
+const keyframesWalkingDown: []const Keyframe = &.{
+    .{ .srcX = 0, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 1, .srcY = 0, .frameDuration = 16 },
+};
+const keyframesWalkingUp: []const Keyframe = &.{
+    .{ .srcX = 2, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 3, .srcY = 0, .frameDuration = 16 },
+};
+const keyframesWalkingLeft: []const Keyframe = &.{
+    .{ .srcX = 4, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 5, .srcY = 0, .frameDuration = 16 },
+};
+const keyframesWalkingRight: []const Keyframe = &.{
+    .{ .srcX = 6, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 7, .srcY = 0, .frameDuration = 16 },
+};
+
+const AnimationFrame = struct {
+    srcX: u8,
+    srcY: u8,
+    animationDone: bool,
+};
+
+const AnimatedSprite = struct {
+    keyframes: []const Keyframe,
+    totalKeyframes: u32,
+    currentFrame: u32,
+    paused: bool = false,
+
+    inline fn countTotalKeyframes(keyframes: []const Keyframe) u32 {
+        var totalKeyframes: u32 = 0;
+        for (keyframes) |keyframe| {
+            totalKeyframes += keyframe.frameDuration;
+        }
+        return totalKeyframes;
+    }
+
+    pub fn init(keyframes: []const Keyframe) AnimatedSprite {
+        return .{
+            .keyframes = keyframes,
+            .currentFrame = 0,
+            .totalKeyframes = countTotalKeyframes(keyframes),
+        };
+    }
+
+    pub fn replace(self: *@This(), keyframes: []const Keyframe) void {
+        self.keyframes = keyframes;
+        self.totalKeyframes = countTotalKeyframes(keyframes);
+    }
+
+    pub fn rewind(self: *@This()) void {
+        self.currentFrame = 0;
+    }
+
+    pub fn pause(self: *@This()) void {
+        self.paused = true;
+    }
+
+    pub fn unpause(self: *@This()) void {
+        self.paused = false;
+    }
+
+    /// Advances the animation to its next frame looping it.
+    pub fn nextFrame(self: *@This()) AnimationFrame {
+        if (!self.paused) {
+            self.currentFrame = (self.currentFrame + 1) % self.totalKeyframes;
+        }
+        var srcX: u8 = undefined;
+        var srcY: u8 = undefined;
+        var i: u32 = 0;
+        var frame: u32 = 0;
+        // Find the current frame
+        while (true) {
+            if (self.currentFrame > frame + self.keyframes[i].frameDuration) {
+                frame += self.keyframes[i].frameDuration;
+                i += 1;
+            } else {
+                srcX = self.keyframes[i].srcX;
+                srcY = self.keyframes[i].srcY;
+                break;
+            }
+        }
+        // This should only be the case if we just wrapped
+        const isFinished = !self.paused and self.currentFrame == 0;
+        return .{
+            .animationDone = isFinished,
+            .srcX = srcX,
+            .srcY = srcY,
+        };
+    }
+};
+
+var playerAnimation = AnimatedSprite.init(keyframesWalkingDown);
 
 fn updatePlayer(
     sprite: *graphics.Sprite,
@@ -261,33 +365,46 @@ fn updatePlayer(
     if (inputState.walkingRight) playerState.directionVec.x += 1;
     playerState.directionVec.normalise();
     // Calculate the new direction
-    playerState.direction = vec2ToDirection(&playerState.directionVec) orelse previousDirection;
-    switch (playerState.direction) {
-        Direction.Down => sprite.tile.srcX = 0,
-        Direction.Up => sprite.tile.srcX = 2,
-        Direction.Left => sprite.tile.srcX = 4,
-        Direction.Right => sprite.tile.srcX = 6,
+    const newDirection = vec2ToDirection(&playerState.directionVec);
+    playerState.direction = newDirection orelse previousDirection;
+    if (previousDirection != newDirection) {
+        switch (playerState.direction) {
+            Direction.Down => playerAnimation.replace(keyframesWalkingDown),
+            Direction.Up => playerAnimation.replace(keyframesWalkingUp),
+            Direction.Left => playerAnimation.replace(keyframesWalkingLeft),
+            Direction.Right => playerAnimation.replace(keyframesWalkingRight),
+        }
+        playerAnimation.rewind();
     }
+    const nextFrame = playerAnimation.nextFrame();
+    sprite.tile.srcX = nextFrame.srcX;
+    sprite.tile.srcY = nextFrame.srcY;
     // Calculate the new position
     // 1 px/frame + 1 px/frame * 0.1 ((px/frame)/frame)
-    playerState.speed.x += std.math.clamp(
-        playerState.speed.x +
-            playerAcceleration * playerState.directionVec.x,
-        -maxSpeed,
-        maxSpeed,
+    playerState.speed.x = std.math.clamp(
+        @mulAdd(f32, playerAcceleration, playerState.directionVec.x, playerState.speed.x),
+        (-maxSpeed) * std.math.absFloat(playerState.directionVec.x),
+        maxSpeed * std.math.absFloat(playerState.directionVec.x),
     );
-    playerState.speed.y += std.math.clamp(
-        playerState.speed.y +
-            playerAcceleration * playerState.directionVec.y,
-        -maxSpeed,
-        maxSpeed,
+    playerState.speed.y = std.math.clamp(
+        @mulAdd(f32, playerAcceleration, playerState.directionVec.y, playerState.speed.y),
+        (-maxSpeed) * std.math.absFloat(playerState.directionVec.y),
+        maxSpeed * std.math.absFloat(playerState.directionVec.y),
     );
 
-    playerState.speed.x *= friction;
-    playerState.speed.y *= friction;
+    playerState.speed.x = if (std.math.absFloat(playerState.speed.x) < 0.1) 0 else playerState.speed.x * friction;
+    playerState.speed.y = if (std.math.absFloat(playerState.speed.y) < 0.1) 0 else playerState.speed.y * friction;
+
+    // check for collisions
 
     sprite.posX += playerState.speed.x;
     sprite.posY += playerState.speed.y;
+
+    if (playerState.speed.x == 0 and playerState.speed.y == 0 and nextFrame.animationDone) {
+        playerAnimation.pause();
+    } else {
+        playerAnimation.unpause();
+    }
 }
 
 const Direction = enum { Up, Down, Left, Right };
@@ -295,9 +412,9 @@ const Direction = enum { Up, Down, Left, Right };
 inline fn vec2ToDirection(vec2: *Vec2) ?Direction {
     if (vec2.x == 0 and vec2.y == 0)
         return null;
-    if (vec2.x == 0 and vec2.y < 0)
+    if (vec2.y < 0)
         return Direction.Up;
-    if (vec2.x == 0 and vec2.y > 0)
+    if (vec2.y > 0)
         return Direction.Down;
     if (vec2.x < 0)
         return Direction.Left;
@@ -312,18 +429,4 @@ pub const testlevel =
     Level{
     .backgroundLayer = .{ .objects = &backgroundObjects },
     .spriteLayer = .{ .sprites = &sprites },
-};
-
-const Collision = packed struct {
-    top: bool = false,
-    bottom: bool = false,
-    left: bool = false,
-    right: bool = false,
-};
-
-const collideAll = Collision{
-    .top = true,
-    .bottom = true,
-    .left = true,
-    .right = true,
 };

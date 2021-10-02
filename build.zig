@@ -16,10 +16,19 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
-    exe.addIncludeDir("/usr/local/include/SDL2");
-    exe.addLibPath("/usr/local/lib");
+    // SDL stuff for macOS
     exe.linkSystemLibrary("sdl2");
-    // exe.linkSystemLibrary("glfw3");
+    exe.addIncludeDir("lib/rtmidi/include");
+    exe.addObjectFile("lib/rtmidi/lib/x64/librtmidi.a");
+    exe.linkFramework("CoreMIDI");
+    exe.linkFramework("CoreFoundation");
+    exe.linkFramework("CoreAudio");
+    exe.linkLibCpp();
+    exe.linkLibC();
+
+    // Midi stuff for macOS
+    // exe.addIncludeDir("/usr/local/include/rtmidi");
+
     exe.linkLibC();
 
     exe.install();
@@ -32,4 +41,18 @@ pub fn build(b: *std.build.Builder) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    // Test
+    var rtmidi_tests = b.addTest("src/rtmidi.zig");
+    rtmidi_tests.setBuildMode(mode);
+    rtmidi_tests.addIncludeDir("lib/rtmidi/include");
+    rtmidi_tests.addObjectFile("lib/rtmidi/lib/x64/librtmidi.a");
+    rtmidi_tests.linkFramework("CoreMIDI");
+    rtmidi_tests.linkFramework("CoreFoundation");
+    rtmidi_tests.linkFramework("CoreAudio");
+    rtmidi_tests.linkLibCpp();
+    rtmidi_tests.linkLibC();
+
+    const test_step = b.step("test", "Run library tests");
+    test_step.dependOn(&rtmidi_tests.step);
 }
