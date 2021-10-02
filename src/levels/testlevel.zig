@@ -29,8 +29,8 @@ const Level = struct {
         for (self.backgroundLayer.objects) |object| {
             srcRect.x = object.tile.srcX * 16;
             srcRect.y = object.tile.srcY * 16;
-            dstRect.x = object.posX * constants.SCALE;
-            dstRect.y = object.posY * constants.SCALE;
+            dstRect.x = @floatToInt(c_int, object.posX * constants.SCALE);
+            dstRect.y = @floatToInt(c_int, object.posY * constants.SCALE);
             _ = c.SDL_RenderCopy(renderer, backgroundTexture, &srcRect, &dstRect);
         }
         for (self.spriteLayer.sprites) |sprite| {
@@ -43,16 +43,16 @@ const Level = struct {
     }
 };
 
-const wallTopLeft = graphics.mkTile(0, 13, graphics.collideAll);
-const wallTop = graphics.mkTile(1, 13, graphics.collideAll);
-const wallTopRight = graphics.mkTile(2, 13, graphics.collideAll);
-const wallLeft = graphics.mkTile(0, 14, graphics.collideAll);
+const wallTopLeft = graphics.mkTile(0, 13, null);
+const wallTop = graphics.mkTile(1, 13, graphics.collideBottom);
+const wallTopRight = graphics.mkTile(2, 13, null);
+const wallLeft = graphics.mkTile(0, 14, graphics.collideRight);
 const floor = graphics.mkTile(1, 14, null);
-const wallRight = graphics.mkTile(2, 14, graphics.collideAll);
-const wallBottomLeft = graphics.mkTile(0, 15, graphics.collideAll);
-const wallBottom = graphics.mkTile(1, 15, graphics.collideAll);
-const wallBottomRight = graphics.mkTile(2, 15, graphics.collideAll);
-const doorLockedTop = graphics.mkTile(4, 15, graphics.collideAll);
+const wallRight = graphics.mkTile(2, 14, graphics.collideLeft);
+const wallBottomLeft = graphics.mkTile(0, 15, null);
+const wallBottom = graphics.mkTile(1, 15, graphics.collideTop);
+const wallBottomRight = graphics.mkTile(2, 15, null);
+const doorLockedTop = graphics.mkTile(4, 15, graphics.collideBottom);
 
 var backgroundObjects = [_]graphics.Object{
     // First line
@@ -115,8 +115,8 @@ var backgroundObjects = [_]graphics.Object{
     graphics.mkObject(80, 48, &floor),
     graphics.mkObject(96, 48, &floor),
     graphics.mkObject(112, 48, &floor),
-    graphics.mkObject(128, 48, &floor),
-    graphics.mkObject(144, 48, &floor),
+    graphics.mkObject(128, 48, &wallRight),
+    graphics.mkObject(144, 48, &wallLeft),
     graphics.mkObject(160, 48, &floor),
     graphics.mkObject(176, 48, &floor),
     graphics.mkObject(192, 48, &floor),
@@ -132,8 +132,8 @@ var backgroundObjects = [_]graphics.Object{
     graphics.mkObject(80, 64, &floor),
     graphics.mkObject(96, 64, &floor),
     graphics.mkObject(112, 64, &floor),
-    graphics.mkObject(128, 64, &floor),
-    graphics.mkObject(144, 64, &floor),
+    graphics.mkObject(128, 64, &wallRight),
+    graphics.mkObject(144, 64, &wallLeft),
     graphics.mkObject(160, 64, &floor),
     graphics.mkObject(176, 64, &floor),
     graphics.mkObject(192, 64, &floor),
@@ -231,8 +231,8 @@ const PlayerState = struct {
 };
 
 var playerSprite = graphics.mkSprite(
-    120,
-    64,
+    240,
+    128,
     &playerLookingDown,
     updatePlayer,
 );
@@ -244,9 +244,9 @@ var playerState = PlayerState{
     .animationFrame = 0,
 };
 
-const playerAcceleration: f32 = 4.0; // (pixels per frame) per frame
+const playerAcceleration: f32 = 10.0; // (pixels per frame) per frame
 const friction: f32 = 0.4; // (pixels per frame) per frame
-const maxSpeed: f32 = 10.0; // pixels per frame
+const maxSpeed: f32 = 160.0; // pixels per frame
 
 /// A tuple of a pointer to a tile in the sprite sheet and its duration in frames.
 const Keyframe = struct {
@@ -259,20 +259,20 @@ const Keyframe = struct {
 };
 
 const keyframesWalkingDown: []const Keyframe = &.{
-    .{ .srcX = 0, .srcY = 0, .frameDuration = 16 },
-    .{ .srcX = 1, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 0, .srcY = 0, .frameDuration = 12 },
+    .{ .srcX = 1, .srcY = 0, .frameDuration = 12 },
 };
 const keyframesWalkingUp: []const Keyframe = &.{
-    .{ .srcX = 2, .srcY = 0, .frameDuration = 16 },
-    .{ .srcX = 3, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 2, .srcY = 0, .frameDuration = 12 },
+    .{ .srcX = 3, .srcY = 0, .frameDuration = 12 },
 };
 const keyframesWalkingLeft: []const Keyframe = &.{
-    .{ .srcX = 4, .srcY = 0, .frameDuration = 16 },
-    .{ .srcX = 5, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 4, .srcY = 0, .frameDuration = 12 },
+    .{ .srcX = 5, .srcY = 0, .frameDuration = 12 },
 };
 const keyframesWalkingRight: []const Keyframe = &.{
-    .{ .srcX = 6, .srcY = 0, .frameDuration = 16 },
-    .{ .srcX = 7, .srcY = 0, .frameDuration = 16 },
+    .{ .srcX = 6, .srcY = 0, .frameDuration = 12 },
+    .{ .srcX = 7, .srcY = 0, .frameDuration = 12 },
 };
 
 const AnimationFrame = struct {
@@ -395,11 +395,88 @@ fn updatePlayer(
     playerState.speed.x = if (std.math.absFloat(playerState.speed.x) < 0.1) 0 else playerState.speed.x * friction;
     playerState.speed.y = if (std.math.absFloat(playerState.speed.y) < 0.1) 0 else playerState.speed.y * friction;
 
+    const newPosX = sprite.posX + playerState.speed.x;
+    const newPosY = sprite.posY + playerState.speed.y;
     // check for collisions
+    // These values will be filled with the closest point that does not collide
+    // so that we don't stop the player too far from the actual collision
+    var maxRight: ?f32 = null;
+    var maxLeft: ?f32 = null;
+    var maxTop: ?f32 = null;
+    var maxBottom: ?f32 = null;
 
-    sprite.posX += playerState.speed.x;
-    sprite.posY += playerState.speed.y;
+    // Helpers for my brain
+    const posLeft = newPosX;
+    const posRight = posLeft + (16 * constants.SCALE);
+    const posTop = newPosY;
+    const posBottom = posTop + (16 * constants.SCALE);
 
+    // Loop trough all background objects for now
+    // [TODO] Prepare a way to get relevant tiles based on the player position
+    // and only check those
+    for (backgroundObjects) |obj| {
+        const objTop = obj.posY * constants.SCALE;
+        const objBottom = objTop + 16 * constants.SCALE;
+        const objLeft = obj.posX * constants.SCALE;
+        const objRight = objLeft + 16 * constants.SCALE;
+
+        const isSameRow =
+            between(objTop, posTop, objBottom) or
+            between(objTop, posBottom, objBottom);
+
+        const isSameCol =
+            between(objLeft, posLeft, objRight) or
+            between(objLeft, posRight, objRight);
+
+        if (obj.tile.collision) |collision| {
+            // Check if we can walk in the x direction
+            if (isSameRow) { // Only consider tiles on the same line [TODO] Get these from a dictionary
+                // Check if we can walk left
+                if (maxLeft == null and collision.right and between(objLeft, posLeft, objRight)) {
+                    maxLeft = objRight + constants.SCALE;
+                }
+                // Check if we can walk right
+                if (maxRight == null and collision.left and between(objLeft, posRight, objRight)) {
+                    maxRight = objLeft - constants.SCALE * 17;
+                }
+            }
+            if (isSameCol) { // Only consider tiles on the same column [TODO] Get these from a dictionary
+                // Check if we can walk up
+                if (maxTop == null and collision.bottom and between(objTop, posTop, objBottom)) {
+                    maxTop = objBottom + constants.SCALE;
+                }
+                // Check if we can walk down
+                if (maxBottom == null and collision.top and between(objTop, posBottom, objBottom)) {
+                    maxBottom = objTop - constants.SCALE * 17;
+                }
+            }
+        }
+    }
+
+    // Restrict horizontal movement in case of a collision
+    if (maxRight) |newX| {
+        sprite.posX = newX;
+        playerState.speed.x = 0;
+    } else if (maxLeft) |newX| {
+        sprite.posX = newX;
+        playerState.speed.x = 0;
+    } else {
+        sprite.posX = newPosX;
+    }
+
+    // Restrict vertical movement in case of a collision
+    if (maxTop) |newY| {
+        sprite.posY = newY;
+        playerState.speed.y = 0;
+    } else if (maxBottom) |newY| {
+        sprite.posY = newY;
+        playerState.speed.y = 0;
+    } else {
+        sprite.posY = newPosY;
+    }
+
+    // Stop playing an animation if the player does not move
+    // Maybe play an idle animation instead?
     if (playerState.speed.x == 0 and playerState.speed.y == 0 and nextFrame.animationDone) {
         playerAnimation.pause();
     } else {
@@ -430,3 +507,7 @@ pub const testlevel =
     .backgroundLayer = .{ .objects = &backgroundObjects },
     .spriteLayer = .{ .sprites = &sprites },
 };
+
+inline fn between(min: f32, x: f32, max: f32) bool {
+    return x >= min and x <= max;
+}

@@ -12,16 +12,34 @@ pub const Sprite = struct {
 };
 
 pub const Object = struct {
-    posX: c_int,
-    posY: c_int,
+    posX: f32,
+    posY: f32,
     tile: *const Tile,
 };
 
 pub const Tile = struct {
     srcX: u8,
     srcY: u8,
+    width: u8 = 16,
+    height: u8 = 16,
     collision: ?Collision,
 };
+
+pub fn Rect(comptime size: comptime_int) type {
+    return struct {
+        const Self = @This();
+        x: u32,
+        y: u32,
+        fn intersects(otherSize: comptime_int, self: *Self, other: *Rect(otherSize)) bool {
+            const result =
+                self.x < other.x + otherSize and
+                self.x + size > other.x and
+                self.y < other.y + otherSize and
+                self.y + size > other.y;
+            return result;
+        }
+    };
+}
 
 pub const Collision = packed struct {
     top: bool = false,
@@ -37,17 +55,22 @@ pub const collideAll = Collision{
     .right = true,
 };
 
+pub const collideBottom = Collision{ .bottom = true };
+pub const collideTop = Collision{ .top = true };
+pub const collideLeft = Collision{ .left = true };
+pub const collideRight = Collision{ .right = true };
+
 pub inline fn mkTile(x: u8, y: u8, collision: ?Collision) Tile {
     return Tile{ .srcX = x, .srcY = y, .collision = collision };
 }
 
-pub inline fn mkObject(x: c_int, y: c_int, tile: *const Tile) Object {
+pub inline fn mkObject(x: f32, y: f32, tile: *const Tile) Object {
     return Object{ .posX = x, .posY = y, .tile = tile };
 }
 
 pub inline fn mkSprite(
-    x: c_int,
-    y: c_int,
+    x: f32,
+    y: f32,
     tile: *Tile,
     comptime update: fn (*Sprite, inputState: input.State) void,
 ) Sprite {
