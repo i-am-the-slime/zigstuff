@@ -1,9 +1,11 @@
 const c = @import("sdl.zig").c;
 const assert = @import("std").debug.assert;
 const std = @import("std");
-const testlevel = @import("levels/testlevel.zig");
+const mkTestLevel = @import("levels/testlevel.zig").mkTestLevel;
+const Level = @import("levels/testlevel.zig").Level;
 const input = @import("game/input.zig");
 const GameMidi = @import("game/game_midi.zig").GameMidi;
+const constants = @import("constants.zig");
 
 pub fn main() !void {
     var allocator = std.testing.allocator;
@@ -15,13 +17,15 @@ pub fn main() !void {
     }
     defer c.SDL_Quit();
 
-    _ = try GameMidi(input.GameInput).init(
+    var gameMidi = try GameMidi(input.GameInput).init(
         allocator,
         &input.onMidiMessage,
         &gameInput,
     );
 
-    var rend = try Renderer.init();
+    gameMidi.registerCallback();
+
+    var rend = try Renderer.init(allocator);
     defer rend.deinit();
     mainloop: while (true) {
         var event: c.SDL_Event = undefined;
@@ -31,17 +35,14 @@ pub fn main() !void {
                 else => {},
             }
         }
-        gameInput.updateInputState();
-        rend.update(gameInput.inputState);
-        rend.render();
+        gameInput.updateInputState(gameMidi.in != null and gameMidi.callbackAndData != null);
+        try rend.updateAndRender(gameInput.inputState);
     }
 }
 
-const FPS = 60.0;
-
 const Renderer = struct {
-    const targetDeltaBetweenFrames: f64 = 1.0 / FPS;
-    frame: u8 = 0,
+    const maxFPS = 120.0;
+    const targetDeltaBetweenFrames: f64 = 1.0 / maxFPS;
     now: u64 = undefined,
     last: u64 = 0,
     deltaTime: f64 = 0.0,
@@ -49,6 +50,7 @@ const Renderer = struct {
     renderer: *c.SDL_Renderer,
     spriteTexture: *c.SDL_Texture,
     backgroundTexture: *c.SDL_Texture,
+    level: Level,
 
     pub fn deinit(self: @This()) void {
         defer c.SDL_DestroyWindow(self.screen);
@@ -57,13 +59,13 @@ const Renderer = struct {
         defer c.SDL_DestroyTexture(self.spriteTexture);
     }
 
-    pub fn init() !@This() {
+    pub fn init(allocator: *std.mem.Allocator) !@This() {
         const screen: *c.SDL_Window = c.SDL_CreateWindow(
             "---",
             c.SDL_WINDOWPOS_UNDEFINED,
             c.SDL_WINDOWPOS_UNDEFINED,
-            1024,
-            576,
+            constants.MAP_WIDTH_IN_TILES * constants.TILE_SIZE * constants.SCALE,
+            constants.MAP_HEIGHT_IN_TILES * constants.TILE_SIZE * constants.SCALE,
             c.SDL_WINDOW_OPENGL,
         ) orelse {
             c.SDL_Log("Unable to create window: %s", c.SDL_GetError());
@@ -78,7 +80,7 @@ const Renderer = struct {
         // assert(c.SDL_RenderSetScale(renderer, 4, 4) == 0);
 
         // Load the sprite sheet
-        const sheet = @embedFile("sheet24.bmp");
+        const sheet = @embedFile("../assets/sheet.bmp");
         const rw = c.SDL_RWFromConstMem(
             @ptrCast(*const c_void, &sheet[0]),
             @intCast(c_int, sheet.len),
@@ -130,26 +132,20 @@ const Renderer = struct {
             .spriteTexture = spriteTexture,
             .backgroundTexture = backgroundTexture,
             .now = c.SDL_GetPerformanceCounter(),
+            .level = mkTestLevel(allocator),
         };
     }
 
-    fn update(
-        _: @This(),
-        inputState: input.State,
-    ) void {
-        testlevel.testlevel.update(inputState);
-    }
-
-    fn render(self: *@This()) void {
+    fn updateAndRender(self: *@This(), inputState: input.State) !void {
         self.last = self.now;
         self.now = c.SDL_GetPerformanceCounter();
         self.deltaTime =
             @intToFloat(f64, (self.now - self.last)) /
             @intToFloat(f64, c.SDL_GetPerformanceFrequency());
-        defer self.frame = (self.frame + 1) % 60;
+        self.level.updateAndRender(inputState, self.deltaTime);
 
         _ = c.SDL_RenderClear(self.renderer);
-        testlevel.testlevel.render(self.renderer, self.backgroundTexture, self.spriteTexture);
+        try self.level.render(self.renderer, self.backgroundTexture, self.spriteTexture);
         c.SDL_RenderPresent(self.renderer);
         const delayBy = std.math.max(0, targetDeltaBetweenFrames - self.deltaTime);
         c.SDL_Delay(@floatToInt(u32, delayBy));

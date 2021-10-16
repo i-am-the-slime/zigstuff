@@ -3,510 +3,107 @@ const constants = @import("../constants.zig");
 const graphics = @import("../game/graphics.zig");
 const input = @import("../game/input.zig");
 const std = @import("std");
+const startroom = @import("./startroom.zig");
+const AnimatedSprite = @import("../graphics/animated_sprite.zig").AnimatedSprite;
+const Keyframe = @import("../graphics/animated_sprite.zig").Keyframe;
+const player = @import("../game/player.zig");
+const Vec2 = @import("../math/vector.zig").Vec2;
+const tile = @import("./tiles.zig");
+const text = @import("../game/text.zig");
 
 const BackgroundLayer = struct {
-    objects: []graphics.Object,
+    const Self = @This();
+    objects: []*const graphics.Object,
+    pub fn tileAtPoint(self: Self, x: f32, y: f32) ?*const graphics.Tile {
+        self.objects[((y / constants.SCALE) * self.width + (x / constants.SCALE)) / 16];
+    }
 };
 
 const SpriteLayer = struct {
     sprites: []*graphics.Sprite,
 };
 
-const Level = struct {
+pub const Level = struct {
+    const Self = @This();
+    var srcRect = c.SDL_Rect{ .x = 0, .y = 0, .w = constants.TILE_SIZE, .h = constants.TILE_SIZE };
+    var dstRect = c.SDL_FRect{ .x = 0, .y = 0, .w = constants.TILE_SIZE * constants.SCALE, .h = constants.TILE_SIZE * constants.SCALE };
+    const tileSizeInPx: f32 = constants.TILE_SIZE * constants.SCALE;
+    allocator: *std.mem.Allocator,
     backgroundLayer: BackgroundLayer,
     spriteLayer: SpriteLayer,
-    pub fn update(
-        self: @This(),
+    inline fn setRects(t: *const graphics.Tile, x: f32, y: f32) void {
+        srcRect.x = t.srcX;
+        srcRect.y = t.srcY;
+        srcRect.w = t.width;
+        srcRect.h = t.height;
+        dstRect.x = x;
+        dstRect.y = y;
+        dstRect.w = @intToFloat(f32, t.width * constants.SCALE);
+        dstRect.h = @intToFloat(f32, t.height * constants.SCALE);
+    }
+    pub fn updateAndRender(
+        self: Self,
         inputState: input.State,
+        deltaTime: f64,
     ) void {
         for (self.spriteLayer.sprites) |sprite| {
-            sprite.update(inputState);
+            sprite.update(inputState, deltaTime);
         }
     }
-    pub fn render(self: @This(), renderer: *c.SDL_Renderer, backgroundTexture: *c.SDL_Texture, spriteTexture: *c.SDL_Texture) void {
-        var srcRect = c.SDL_Rect{ .x = 0, .y = 0, .w = 16, .h = 16 };
-        var dstRect = c.SDL_Rect{ .x = 0, .y = 0, .w = 16 * constants.SCALE, .h = 16 * constants.SCALE };
+    pub fn render(self: Self, renderer: *c.SDL_Renderer, backgroundTexture: *c.SDL_Texture, spriteTexture: *c.SDL_Texture) !void {
         for (self.backgroundLayer.objects) |object| {
-            srcRect.x = object.tile.srcX * 16;
-            srcRect.y = object.tile.srcY * 16;
-            dstRect.x = @floatToInt(c_int, object.posX * constants.SCALE);
-            dstRect.y = @floatToInt(c_int, object.posY * constants.SCALE);
-            _ = c.SDL_RenderCopy(renderer, backgroundTexture, &srcRect, &dstRect);
+            setRects(object.tile, object.position.x * tileSizeInPx, object.position.y * tileSizeInPx);
+            _ = c.SDL_RenderCopyF(renderer, backgroundTexture, &srcRect, &dstRect);
         }
         for (self.spriteLayer.sprites) |sprite| {
-            srcRect.x = sprite.tile.srcX * 16;
-            srcRect.y = sprite.tile.srcY * 16;
-            dstRect.x = @floatToInt(c_int, sprite.posX);
-            dstRect.y = @floatToInt(c_int, sprite.posY);
-            _ = c.SDL_RenderCopy(renderer, spriteTexture, &srcRect, &dstRect);
+            setRects(sprite.tile, sprite.posX, sprite.posY);
+            _ = c.SDL_RenderCopyF(renderer, spriteTexture, &srcRect, &dstRect);
         }
-    }
-};
 
-const wallTopLeft = graphics.mkTile(0, 13, null);
-const wallTop = graphics.mkTile(1, 13, graphics.collideBottom);
-const wallTopRight = graphics.mkTile(2, 13, null);
-const wallLeft = graphics.mkTile(0, 14, graphics.collideRight);
-const floor = graphics.mkTile(1, 14, null);
-const wallRight = graphics.mkTile(2, 14, graphics.collideLeft);
-const wallBottomLeft = graphics.mkTile(0, 15, null);
-const wallBottom = graphics.mkTile(1, 15, graphics.collideTop);
-const wallBottomRight = graphics.mkTile(2, 15, null);
-const doorLockedTop = graphics.mkTile(4, 15, graphics.collideBottom);
-
-var backgroundObjects = [_]graphics.Object{
-    // First line
-    graphics.mkObject(0, 0, &wallTopLeft),
-    graphics.mkObject(16, 0, &wallTop),
-    graphics.mkObject(32, 0, &wallTop),
-    graphics.mkObject(48, 0, &wallTop),
-    graphics.mkObject(64, 0, &wallTop),
-    graphics.mkObject(80, 0, &wallTop),
-    graphics.mkObject(96, 0, &wallTop),
-    graphics.mkObject(112, 0, &wallTop),
-    graphics.mkObject(128, 0, &doorLockedTop),
-    graphics.mkObject(144, 0, &wallTop),
-    graphics.mkObject(160, 0, &wallTop),
-    graphics.mkObject(176, 0, &wallTop),
-    graphics.mkObject(192, 0, &wallTop),
-    graphics.mkObject(208, 0, &wallTop),
-    graphics.mkObject(224, 0, &wallTop),
-    graphics.mkObject(240, 0, &wallTopRight),
-    // Second line
-    graphics.mkObject(0, 16, &wallLeft),
-    graphics.mkObject(16, 16, &floor),
-    graphics.mkObject(32, 16, &floor),
-    graphics.mkObject(48, 16, &floor),
-    graphics.mkObject(64, 16, &floor),
-    graphics.mkObject(80, 16, &floor),
-    graphics.mkObject(96, 16, &floor),
-    graphics.mkObject(112, 16, &floor),
-    graphics.mkObject(128, 16, &floor),
-    graphics.mkObject(144, 16, &floor),
-    graphics.mkObject(160, 16, &floor),
-    graphics.mkObject(176, 16, &floor),
-    graphics.mkObject(192, 16, &floor),
-    graphics.mkObject(208, 16, &floor),
-    graphics.mkObject(224, 16, &floor),
-    graphics.mkObject(240, 16, &wallRight),
-    // Third line
-    graphics.mkObject(0, 32, &wallLeft),
-    graphics.mkObject(16, 32, &floor),
-    graphics.mkObject(32, 32, &floor),
-    graphics.mkObject(48, 32, &floor),
-    graphics.mkObject(64, 32, &floor),
-    graphics.mkObject(80, 32, &floor),
-    graphics.mkObject(96, 32, &floor),
-    graphics.mkObject(112, 32, &floor),
-    graphics.mkObject(128, 32, &floor),
-    graphics.mkObject(144, 32, &floor),
-    graphics.mkObject(160, 32, &floor),
-    graphics.mkObject(176, 32, &floor),
-    graphics.mkObject(192, 32, &floor),
-    graphics.mkObject(208, 32, &floor),
-    graphics.mkObject(224, 32, &floor),
-    graphics.mkObject(240, 32, &wallRight),
-    // Fourth line
-    graphics.mkObject(0, 48, &wallLeft),
-    graphics.mkObject(16, 48, &floor),
-    graphics.mkObject(32, 48, &floor),
-    graphics.mkObject(48, 48, &floor),
-    graphics.mkObject(64, 48, &floor),
-    graphics.mkObject(80, 48, &floor),
-    graphics.mkObject(96, 48, &floor),
-    graphics.mkObject(112, 48, &floor),
-    graphics.mkObject(128, 48, &wallRight),
-    graphics.mkObject(144, 48, &wallLeft),
-    graphics.mkObject(160, 48, &floor),
-    graphics.mkObject(176, 48, &floor),
-    graphics.mkObject(192, 48, &floor),
-    graphics.mkObject(208, 48, &floor),
-    graphics.mkObject(224, 48, &floor),
-    graphics.mkObject(240, 48, &wallRight),
-    // Fifth line
-    graphics.mkObject(0, 64, &wallLeft),
-    graphics.mkObject(16, 64, &floor),
-    graphics.mkObject(32, 64, &floor),
-    graphics.mkObject(48, 64, &floor),
-    graphics.mkObject(64, 64, &floor),
-    graphics.mkObject(80, 64, &floor),
-    graphics.mkObject(96, 64, &floor),
-    graphics.mkObject(112, 64, &floor),
-    graphics.mkObject(128, 64, &wallRight),
-    graphics.mkObject(144, 64, &wallLeft),
-    graphics.mkObject(160, 64, &floor),
-    graphics.mkObject(176, 64, &floor),
-    graphics.mkObject(192, 64, &floor),
-    graphics.mkObject(208, 64, &floor),
-    graphics.mkObject(224, 64, &floor),
-    graphics.mkObject(240, 64, &wallRight),
-    graphics.mkObject(0, 80, &wallLeft),
-    graphics.mkObject(16, 80, &floor),
-    graphics.mkObject(32, 80, &floor),
-    graphics.mkObject(48, 80, &floor),
-    graphics.mkObject(64, 80, &floor),
-    graphics.mkObject(80, 80, &floor),
-    graphics.mkObject(96, 80, &floor),
-    graphics.mkObject(112, 80, &floor),
-    graphics.mkObject(128, 80, &floor),
-    graphics.mkObject(144, 80, &floor),
-    graphics.mkObject(160, 80, &floor),
-    graphics.mkObject(176, 80, &floor),
-    graphics.mkObject(192, 80, &floor),
-    graphics.mkObject(208, 80, &floor),
-    graphics.mkObject(224, 80, &floor),
-    graphics.mkObject(240, 80, &wallRight),
-    graphics.mkObject(0, 96, &wallLeft),
-    graphics.mkObject(16, 96, &floor),
-    graphics.mkObject(32, 96, &floor),
-    graphics.mkObject(48, 96, &floor),
-    graphics.mkObject(64, 96, &floor),
-    graphics.mkObject(80, 96, &floor),
-    graphics.mkObject(96, 96, &floor),
-    graphics.mkObject(112, 96, &floor),
-    graphics.mkObject(128, 96, &floor),
-    graphics.mkObject(144, 96, &floor),
-    graphics.mkObject(160, 96, &floor),
-    graphics.mkObject(176, 96, &floor),
-    graphics.mkObject(192, 96, &floor),
-    graphics.mkObject(208, 96, &floor),
-    graphics.mkObject(224, 96, &floor),
-    graphics.mkObject(240, 96, &wallRight),
-    graphics.mkObject(0, 112, &wallLeft),
-    graphics.mkObject(16, 112, &floor),
-    graphics.mkObject(32, 112, &floor),
-    graphics.mkObject(48, 112, &floor),
-    graphics.mkObject(64, 112, &floor),
-    graphics.mkObject(80, 112, &floor),
-    graphics.mkObject(96, 112, &floor),
-    graphics.mkObject(112, 112, &floor),
-    graphics.mkObject(128, 112, &floor),
-    graphics.mkObject(144, 112, &floor),
-    graphics.mkObject(160, 112, &floor),
-    graphics.mkObject(176, 112, &floor),
-    graphics.mkObject(192, 112, &floor),
-    graphics.mkObject(208, 112, &floor),
-    graphics.mkObject(224, 112, &floor),
-    graphics.mkObject(240, 112, &wallRight),
-    graphics.mkObject(0, 128, &wallBottomLeft),
-    graphics.mkObject(16, 128, &wallBottom),
-    graphics.mkObject(32, 128, &wallBottom),
-    graphics.mkObject(48, 128, &wallBottom),
-    graphics.mkObject(64, 128, &wallBottom),
-    graphics.mkObject(80, 128, &wallBottom),
-    graphics.mkObject(96, 128, &wallBottom),
-    graphics.mkObject(112, 128, &wallBottom),
-    graphics.mkObject(128, 128, &wallBottom),
-    graphics.mkObject(144, 128, &wallBottom),
-    graphics.mkObject(160, 128, &wallBottom),
-    graphics.mkObject(176, 128, &wallBottom),
-    graphics.mkObject(192, 128, &wallBottom),
-    graphics.mkObject(208, 128, &wallBottom),
-    graphics.mkObject(224, 128, &wallBottom),
-    graphics.mkObject(240, 128, &wallBottomRight),
-};
-
-var playerLookingDown = graphics.mkTile(0, 0, null);
-
-const Vec2 = struct {
-    x: f32,
-    y: f32,
-    pub fn len(self: @This()) f32 {
-        return @sqrt((self.x * self.x) + (self.y * self.y));
-    }
-    pub fn normalise(self: *@This()) void {
-        const length = self.len();
-        if (length != 0) {
-            self.x /= length;
-            self.y /= length;
-        }
-    }
-};
-
-const PlayerState = struct {
-    directionVec: Vec2,
-    direction: Direction,
-    speed: Vec2,
-    animationFrame: c_int,
-};
-
-var playerSprite = graphics.mkSprite(
-    240,
-    128,
-    &playerLookingDown,
-    updatePlayer,
-);
-
-var playerState = PlayerState{
-    .directionVec = Vec2{ .x = 0, .y = 0 },
-    .direction = Direction.Down,
-    .speed = Vec2{ .x = 0, .y = 0 },
-    .animationFrame = 0,
-};
-
-const playerAcceleration: f32 = 10.0; // (pixels per frame) per frame
-const friction: f32 = 0.4; // (pixels per frame) per frame
-const maxSpeed: f32 = 160.0; // pixels per frame
-
-/// A tuple of a pointer to a tile in the sprite sheet and its duration in frames.
-const Keyframe = struct {
-    /// The x position in the sprite sheet
-    srcX: u8,
-    /// The y position in the sprite sheet
-    srcY: u8,
-    /// For how many frames (assuming 60fps) this sprite should be displayed
-    frameDuration: u8,
-};
-
-const keyframesWalkingDown: []const Keyframe = &.{
-    .{ .srcX = 0, .srcY = 0, .frameDuration = 12 },
-    .{ .srcX = 1, .srcY = 0, .frameDuration = 12 },
-};
-const keyframesWalkingUp: []const Keyframe = &.{
-    .{ .srcX = 2, .srcY = 0, .frameDuration = 12 },
-    .{ .srcX = 3, .srcY = 0, .frameDuration = 12 },
-};
-const keyframesWalkingLeft: []const Keyframe = &.{
-    .{ .srcX = 4, .srcY = 0, .frameDuration = 12 },
-    .{ .srcX = 5, .srcY = 0, .frameDuration = 12 },
-};
-const keyframesWalkingRight: []const Keyframe = &.{
-    .{ .srcX = 6, .srcY = 0, .frameDuration = 12 },
-    .{ .srcX = 7, .srcY = 0, .frameDuration = 12 },
-};
-
-const AnimationFrame = struct {
-    srcX: u8,
-    srcY: u8,
-    animationDone: bool,
-};
-
-const AnimatedSprite = struct {
-    keyframes: []const Keyframe,
-    totalKeyframes: u32,
-    currentFrame: u32,
-    paused: bool = false,
-
-    inline fn countTotalKeyframes(keyframes: []const Keyframe) u32 {
-        var totalKeyframes: u32 = 0;
-        for (keyframes) |keyframe| {
-            totalKeyframes += keyframe.frameDuration;
-        }
-        return totalKeyframes;
-    }
-
-    pub fn init(keyframes: []const Keyframe) AnimatedSprite {
-        return .{
-            .keyframes = keyframes,
-            .currentFrame = 0,
-            .totalKeyframes = countTotalKeyframes(keyframes),
-        };
-    }
-
-    pub fn replace(self: *@This(), keyframes: []const Keyframe) void {
-        self.keyframes = keyframes;
-        self.totalKeyframes = countTotalKeyframes(keyframes);
-    }
-
-    pub fn rewind(self: *@This()) void {
-        self.currentFrame = 0;
-    }
-
-    pub fn pause(self: *@This()) void {
-        self.paused = true;
-    }
-
-    pub fn unpause(self: *@This()) void {
-        self.paused = false;
-    }
-
-    /// Advances the animation to its next frame looping it.
-    pub fn nextFrame(self: *@This()) AnimationFrame {
-        if (!self.paused) {
-            self.currentFrame = (self.currentFrame + 1) % self.totalKeyframes;
-        }
-        var srcX: u8 = undefined;
-        var srcY: u8 = undefined;
-        var i: u32 = 0;
-        var frame: u32 = 0;
-        // Find the current frame
-        while (true) {
-            if (self.currentFrame > frame + self.keyframes[i].frameDuration) {
-                frame += self.keyframes[i].frameDuration;
-                i += 1;
-            } else {
-                srcX = self.keyframes[i].srcX;
-                srcY = self.keyframes[i].srcY;
-                break;
+        const lineGap = constants.TILE_SIZE * constants.SCALE * 0.5;
+        const lineHeight = constants.TILE_SIZE * constants.SCALE + lineGap;
+        const lines = try text.tilesToLines(
+            self.allocator,
+            "Here is some long ass text that should wrap eventually into multiple lines",
+            constants.MAP_WIDTH_IN_TILES * constants.TILE_SIZE * constants.SCALE,
+            lineHeight,
+        );
+        const yOffset = (constants.MAP_HEIGHT_IN_TILES - 3) * constants.TILE_SIZE * constants.SCALE - (2 * lineGap);
+        for (lines.items) |line| {
+            for (line.items) |obj| {
+                setRects(obj.tile, obj.position.x, obj.position.y + yOffset);
+                _ = c.SDL_RenderCopyF(renderer, spriteTexture, &srcRect, &dstRect);
             }
+            line.deinit();
         }
-        // This should only be the case if we just wrapped
-        const isFinished = !self.paused and self.currentFrame == 0;
-        return .{
-            .animationDone = isFinished,
-            .srcX = srcX,
-            .srcY = srcY,
-        };
+        lines.deinit();
+        // const padX = 2;
+        // var x: f32 = padX * tileSizeInPx;
+        // var y: f32 = 8 * tileSizeInPx;
+        // const letterTiles = try text.textToTile(self.allocator, "Hi, hast du vielleicht den Arsch auf? Ich denke, so wird das leider nichts mit uns!");
+        // for (letterTiles) |letterTile, i| {
+        //     setRects(letterTile, x, y);
+        //     _ = c.SDL_RenderCopyF(renderer, spriteTexture, &srcRect, &dstRect);
+        //     x += (@intToFloat(f32, letterTile.width)) * constants.SCALE;
+        //     if (x >= ((constants.MAP_WIDTH_IN_TILES - padX) * constants.TILE_SIZE * constants.SCALE)) {
+        //         x = padX * tileSizeInPx;
+        //         y += @intToFloat(f32, letterTile.height) * constants.SCALE;
+        //     }
+        // }
     }
 };
-
-var playerAnimation = AnimatedSprite.init(keyframesWalkingDown);
-
-fn updatePlayer(
-    sprite: *graphics.Sprite,
-    inputState: input.State,
-) void {
-    const previousDirection = playerState.direction;
-    playerState.directionVec.x = 0;
-    playerState.directionVec.y = 0;
-    if (inputState.walkingUp) playerState.directionVec.y -= 1;
-    if (inputState.walkingDown) playerState.directionVec.y += 1;
-    if (inputState.walkingLeft) playerState.directionVec.x -= 1;
-    if (inputState.walkingRight) playerState.directionVec.x += 1;
-    playerState.directionVec.normalise();
-    // Calculate the new direction
-    const newDirection = vec2ToDirection(&playerState.directionVec);
-    playerState.direction = newDirection orelse previousDirection;
-    if (previousDirection != newDirection) {
-        switch (playerState.direction) {
-            Direction.Down => playerAnimation.replace(keyframesWalkingDown),
-            Direction.Up => playerAnimation.replace(keyframesWalkingUp),
-            Direction.Left => playerAnimation.replace(keyframesWalkingLeft),
-            Direction.Right => playerAnimation.replace(keyframesWalkingRight),
-        }
-        playerAnimation.rewind();
-    }
-    const nextFrame = playerAnimation.nextFrame();
-    sprite.tile.srcX = nextFrame.srcX;
-    sprite.tile.srcY = nextFrame.srcY;
-    // Calculate the new position
-    // 1 px/frame + 1 px/frame * 0.1 ((px/frame)/frame)
-    playerState.speed.x = std.math.clamp(
-        @mulAdd(f32, playerAcceleration, playerState.directionVec.x, playerState.speed.x),
-        (-maxSpeed) * std.math.absFloat(playerState.directionVec.x),
-        maxSpeed * std.math.absFloat(playerState.directionVec.x),
-    );
-    playerState.speed.y = std.math.clamp(
-        @mulAdd(f32, playerAcceleration, playerState.directionVec.y, playerState.speed.y),
-        (-maxSpeed) * std.math.absFloat(playerState.directionVec.y),
-        maxSpeed * std.math.absFloat(playerState.directionVec.y),
-    );
-
-    playerState.speed.x = if (std.math.absFloat(playerState.speed.x) < 0.1) 0 else playerState.speed.x * friction;
-    playerState.speed.y = if (std.math.absFloat(playerState.speed.y) < 0.1) 0 else playerState.speed.y * friction;
-
-    const newPosX = sprite.posX + playerState.speed.x;
-    const newPosY = sprite.posY + playerState.speed.y;
-    // check for collisions
-    // These values will be filled with the closest point that does not collide
-    // so that we don't stop the player too far from the actual collision
-    var maxRight: ?f32 = null;
-    var maxLeft: ?f32 = null;
-    var maxTop: ?f32 = null;
-    var maxBottom: ?f32 = null;
-
-    // Helpers for my brain
-    const posLeft = newPosX;
-    const posRight = posLeft + (16 * constants.SCALE);
-    const posTop = newPosY;
-    const posBottom = posTop + (16 * constants.SCALE);
-
-    // Loop trough all background objects for now
-    // [TODO] Prepare a way to get relevant tiles based on the player position
-    // and only check those
-    for (backgroundObjects) |obj| {
-        const objTop = obj.posY * constants.SCALE;
-        const objBottom = objTop + 16 * constants.SCALE;
-        const objLeft = obj.posX * constants.SCALE;
-        const objRight = objLeft + 16 * constants.SCALE;
-
-        const isSameRow =
-            between(objTop, posTop, objBottom) or
-            between(objTop, posBottom, objBottom);
-
-        const isSameCol =
-            between(objLeft, posLeft, objRight) or
-            between(objLeft, posRight, objRight);
-
-        if (obj.tile.collision) |collision| {
-            // Check if we can walk in the x direction
-            if (isSameRow) { // Only consider tiles on the same line [TODO] Get these from a dictionary
-                // Check if we can walk left
-                if (maxLeft == null and collision.right and between(objLeft, posLeft, objRight)) {
-                    maxLeft = objRight + constants.SCALE;
-                }
-                // Check if we can walk right
-                if (maxRight == null and collision.left and between(objLeft, posRight, objRight)) {
-                    maxRight = objLeft - constants.SCALE * 17;
-                }
-            }
-            if (isSameCol) { // Only consider tiles on the same column [TODO] Get these from a dictionary
-                // Check if we can walk up
-                if (maxTop == null and collision.bottom and between(objTop, posTop, objBottom)) {
-                    maxTop = objBottom + constants.SCALE;
-                }
-                // Check if we can walk down
-                if (maxBottom == null and collision.top and between(objTop, posBottom, objBottom)) {
-                    maxBottom = objTop - constants.SCALE * 17;
-                }
-            }
-        }
-    }
-
-    // Restrict horizontal movement in case of a collision
-    if (maxRight) |newX| {
-        sprite.posX = newX;
-        playerState.speed.x = 0;
-    } else if (maxLeft) |newX| {
-        sprite.posX = newX;
-        playerState.speed.x = 0;
-    } else {
-        sprite.posX = newPosX;
-    }
-
-    // Restrict vertical movement in case of a collision
-    if (maxTop) |newY| {
-        sprite.posY = newY;
-        playerState.speed.y = 0;
-    } else if (maxBottom) |newY| {
-        sprite.posY = newY;
-        playerState.speed.y = 0;
-    } else {
-        sprite.posY = newPosY;
-    }
-
-    // Stop playing an animation if the player does not move
-    // Maybe play an idle animation instead?
-    if (playerState.speed.x == 0 and playerState.speed.y == 0 and nextFrame.animationDone) {
-        playerAnimation.pause();
-    } else {
-        playerAnimation.unpause();
-    }
-}
-
-const Direction = enum { Up, Down, Left, Right };
-
-inline fn vec2ToDirection(vec2: *Vec2) ?Direction {
-    if (vec2.x == 0 and vec2.y == 0)
-        return null;
-    if (vec2.y < 0)
-        return Direction.Up;
-    if (vec2.y > 0)
-        return Direction.Down;
-    if (vec2.x < 0)
-        return Direction.Left;
-    return Direction.Right;
-}
 
 var sprites = [_]*graphics.Sprite{
-    &playerSprite,
+    &player.playerSprite,
 };
 
-pub const testlevel =
-    Level{
-    .backgroundLayer = .{ .objects = &backgroundObjects },
-    .spriteLayer = .{ .sprites = &sprites },
-};
+pub fn mkTestLevel(allocator: *std.mem.Allocator) Level {
+    return Level{
+        .allocator = allocator,
+        .backgroundLayer = .{ .objects = &startroom.background },
+        .spriteLayer = .{ .sprites = &sprites },
+    };
+}
 
 inline fn between(min: f32, x: f32, max: f32) bool {
     return x >= min and x <= max;

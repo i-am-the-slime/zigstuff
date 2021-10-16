@@ -1,27 +1,28 @@
 const constants = @import("../constants.zig");
 const input = @import("input.zig");
+const Vec2 = @import("../math/vector.zig").Vec2;
+
+pub const Object = struct {
+    const Self = @This();
+    position: Vec2,
+    tile: *const Tile,
+};
 
 pub const Sprite = struct {
     posX: f32,
     posY: f32,
     tile: *Tile,
-    updateFn: fn (self: *@This(), inputState: input.State) void,
-    pub fn update(self: *@This(), inputState: input.State) void {
-        self.updateFn(self, inputState);
+    updateFn: fn (self: *@This(), inputState: input.State, deltaTime: f64) void,
+    pub fn update(self: *@This(), inputState: input.State, deltaTime: f64) void {
+        self.updateFn(self, inputState, deltaTime);
     }
-};
-
-pub const Object = struct {
-    posX: f32,
-    posY: f32,
-    tile: *const Tile,
 };
 
 pub const Tile = struct {
     srcX: u8,
     srcY: u8,
-    width: u8 = 16,
-    height: u8 = 16,
+    width: i32 = 16,
+    height: i32 = 16,
     collision: ?Collision,
 };
 
@@ -64,15 +65,19 @@ pub inline fn mkTile(x: u8, y: u8, collision: ?Collision) Tile {
     return Tile{ .srcX = x, .srcY = y, .collision = collision };
 }
 
-pub inline fn mkObject(x: f32, y: f32, tile: *const Tile) Object {
-    return Object{ .posX = x, .posY = y, .tile = tile };
+pub inline fn mkTile8(x: u8, y: u8, collision: ?Collision) Tile {
+    return Tile{ .srcX = x, .srcY = y, .width = 8, .height = 8, .collision = collision };
+}
+
+pub inline fn mkTile8w(x: u8, y: u8, w: i32, collision: ?Collision) Tile {
+    return Tile{ .srcX = x, .srcY = y, .width = w, .height = 8, .collision = collision };
 }
 
 pub inline fn mkSprite(
     x: f32,
     y: f32,
     tile: *Tile,
-    comptime update: fn (*Sprite, inputState: input.State) void,
+    comptime update: fn (*Sprite, inputState: input.State, deltaTime: f64) void,
 ) Sprite {
     return Sprite{ .posX = x, .posY = y, .tile = tile, .updateFn = update };
 }

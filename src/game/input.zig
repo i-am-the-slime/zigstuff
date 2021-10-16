@@ -26,13 +26,15 @@ pub const GameInput = struct {
 
     pub fn deinit(_: *Self) void {}
 
-    pub fn updateInputState(self: *Self) void {
+    pub fn updateInputState(self: *Self, midiInputActive: bool) void {
         // Fallback to computer keyboard input for testing
-        const sdlState: [*c]const u8 = sdl.SDL_GetKeyboardState(null);
-        self.inputState.walkingUp = sdlState[sdl.SDL_SCANCODE_UP] != 0;
-        self.inputState.walkingDown = sdlState[sdl.SDL_SCANCODE_DOWN] != 0;
-        self.inputState.walkingLeft = sdlState[sdl.SDL_SCANCODE_LEFT] != 0;
-        self.inputState.walkingRight = sdlState[sdl.SDL_SCANCODE_RIGHT] != 0;
+        if (!midiInputActive) {
+            const sdlState: [*c]const u8 = sdl.SDL_GetKeyboardState(null);
+            self.inputState.walkingUp = sdlState[sdl.SDL_SCANCODE_UP] != 0;
+            self.inputState.walkingDown = sdlState[sdl.SDL_SCANCODE_DOWN] != 0;
+            self.inputState.walkingLeft = sdlState[sdl.SDL_SCANCODE_LEFT] != 0;
+            self.inputState.walkingRight = sdlState[sdl.SDL_SCANCODE_RIGHT] != 0;
+        }
     }
 };
 
@@ -42,6 +44,7 @@ pub fn onMidiMessage(msg: midi.MidiMessage, gi: *GameInput) void {
     switch (msg) {
         .noteOn => |noteOn| {
             const tone = midi.midiKeyToTone(noteOn.key);
+            std.debug.print("MIDI big boy: {s} \n", .{tone.note});
             switch (tone.note) {
                 midi.Note.C => gi.inputState.walkingLeft = true,
                 midi.Note.D => gi.inputState.walkingDown = true,

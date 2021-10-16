@@ -23,7 +23,7 @@ pub fn build(b: *std.build.Builder) void {
     exe.linkFramework("CoreMIDI");
     exe.linkFramework("CoreFoundation");
     exe.linkFramework("CoreAudio");
-    exe.linkLibCpp();
+    exe.linkSystemLibrary("c++");
     exe.linkLibC();
 
     // Midi stuff for macOS
@@ -42,17 +42,17 @@ pub fn build(b: *std.build.Builder) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    // Test
-    var rtmidi_tests = b.addTest("src/rtmidi.zig");
-    rtmidi_tests.setBuildMode(mode);
-    rtmidi_tests.addIncludeDir("lib/rtmidi/include");
-    rtmidi_tests.addObjectFile("lib/rtmidi/lib/x64/librtmidi.a");
-    rtmidi_tests.linkFramework("CoreMIDI");
-    rtmidi_tests.linkFramework("CoreFoundation");
-    rtmidi_tests.linkFramework("CoreAudio");
-    rtmidi_tests.linkLibCpp();
-    rtmidi_tests.linkLibC();
+    // // Test
+    // var rtmidi_tests = b.addTest("src/rtmidi.zig");
+    // rtmidi_tests.setBuildMode(mode);
+    // rtmidi_tests.addIncludeDir("lib/rtmidi/include");
+    // rtmidi_tests.addObjectFile("lib/rtmidi/lib/x64/librtmidi.a");
+    // rtmidi_tests.linkFramework("CoreMIDI");
+    // rtmidi_tests.linkFramework("CoreFoundation");
+    // rtmidi_tests.linkFramework("CoreAudio");
+    // rtmidi_tests.linkSystemLibrary("c++");
+    // rtmidi_tests.linkLibC();
 
-    const test_step = b.step("test", "Run library tests");
-    test_step.dependOn(&rtmidi_tests.step);
+    // const test_step = b.step("test", "Run library tests");
+    // test_step.dependOn(&rtmidi_tests.step);
 }
