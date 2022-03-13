@@ -2,12 +2,15 @@ const sdl = @import("../sdl.zig").c;
 const midi = @import("../midi/midi.zig");
 const game_midi = @import("../game/game_midi.zig");
 const std = @import("std");
+const game_state = @import("../game/game_state.zig");
 
 pub const State = packed struct {
-    walkingUp: bool = false,
-    walkingDown: bool = false,
-    walkingLeft: bool = false,
-    walkingRight: bool = false,
+    up: bool = false,
+    down: bool = false,
+    left: bool = false,
+    right: bool = false,
+    action: bool = false,
+    pause: bool = false,
 };
 
 pub const GameInput = struct {
@@ -26,14 +29,20 @@ pub const GameInput = struct {
 
     pub fn deinit(_: *Self) void {}
 
-    pub fn updateInputState(self: *Self, midiInputActive: bool) void {
+    pub fn updateInputState(
+        self: *Self,
+        // gameState: *game_state.GameState,
+        midiInputActive: bool,
+    ) void {
+
         // Fallback to computer keyboard input for testing
         if (!midiInputActive) {
             const sdlState: [*c]const u8 = sdl.SDL_GetKeyboardState(null);
-            self.inputState.walkingUp = sdlState[sdl.SDL_SCANCODE_UP] != 0;
-            self.inputState.walkingDown = sdlState[sdl.SDL_SCANCODE_DOWN] != 0;
-            self.inputState.walkingLeft = sdlState[sdl.SDL_SCANCODE_LEFT] != 0;
-            self.inputState.walkingRight = sdlState[sdl.SDL_SCANCODE_RIGHT] != 0;
+            self.inputState.up = sdlState[sdl.SDL_SCANCODE_UP] != 0;
+            self.inputState.down = sdlState[sdl.SDL_SCANCODE_DOWN] != 0;
+            self.inputState.left = sdlState[sdl.SDL_SCANCODE_LEFT] != 0;
+            self.inputState.right = sdlState[sdl.SDL_SCANCODE_RIGHT] != 0;
+            self.inputState.action = sdlState[sdl.SDL_SCANCODE_SPACE] != 0;
         }
     }
 };
@@ -46,20 +55,20 @@ pub fn onMidiMessage(msg: midi.MidiMessage, gi: *GameInput) void {
             const tone = midi.midiKeyToTone(noteOn.key);
             std.debug.print("MIDI big boy: {s} \n", .{tone.note});
             switch (tone.note) {
-                midi.Note.C => gi.inputState.walkingLeft = true,
-                midi.Note.D => gi.inputState.walkingDown = true,
-                midi.Note.E => gi.inputState.walkingUp = true,
-                midi.Note.F => gi.inputState.walkingRight = true,
+                midi.Note.C => gi.inputState.left = true,
+                midi.Note.D => gi.inputState.down = true,
+                midi.Note.E => gi.inputState.up = true,
+                midi.Note.F => gi.inputState.right = true,
                 else => {},
             }
         },
         .noteOff => |noteOff| {
             const tone = midi.midiKeyToTone(noteOff.key);
             switch (tone.note) {
-                midi.Note.C => gi.inputState.walkingLeft = false,
-                midi.Note.D => gi.inputState.walkingDown = false,
-                midi.Note.E => gi.inputState.walkingUp = false,
-                midi.Note.F => gi.inputState.walkingRight = false,
+                midi.Note.C => gi.inputState.left = false,
+                midi.Note.D => gi.inputState.down = false,
+                midi.Note.E => gi.inputState.up = false,
+                midi.Note.F => gi.inputState.right = false,
                 else => {},
             }
         },

@@ -10,6 +10,9 @@ const player = @import("../game/player.zig");
 const Vec2 = @import("../math/vector.zig").Vec2;
 const tile = @import("./tiles.zig");
 const text = @import("../game/text.zig");
+const renderText = @import("../graphics/text.zig").renderText;
+const game_state = @import("../game/game_state.zig");
+const tileRenderer = @import("../graphics/tile_renderer.zig").TileRenderer;
 
 const BackgroundLayer = struct {
     const Self = @This();
@@ -44,13 +47,21 @@ pub const Level = struct {
     pub fn updateAndRender(
         self: Self,
         inputState: input.State,
+        gameState: *game_state.GameState,
         deltaTime: f64,
     ) void {
-        for (self.spriteLayer.sprites) |sprite| {
-            sprite.update(inputState, deltaTime);
+        switch (gameState.*) {
+            game_state.GameState.InGame => for (self.spriteLayer.sprites) |sprite|
+                sprite.update(inputState, deltaTime),
+            else => unreachable,
         }
     }
-    pub fn render(self: Self, renderer: *c.SDL_Renderer, backgroundTexture: *c.SDL_Texture, spriteTexture: *c.SDL_Texture) !void {
+    pub fn render(
+        self: Self,
+        renderer: *c.SDL_Renderer,
+        backgroundTexture: *c.SDL_Texture,
+        spriteTexture: *c.SDL_Texture,
+    ) !void {
         for (self.backgroundLayer.objects) |object| {
             setRects(object.tile, object.position.x * tileSizeInPx, object.position.y * tileSizeInPx);
             _ = c.SDL_RenderCopyF(renderer, backgroundTexture, &srcRect, &dstRect);
@@ -59,37 +70,7 @@ pub const Level = struct {
             setRects(sprite.tile, sprite.posX, sprite.posY);
             _ = c.SDL_RenderCopyF(renderer, spriteTexture, &srcRect, &dstRect);
         }
-
-        const lineGap = constants.TILE_SIZE * constants.SCALE * 0.5;
-        const lineHeight = constants.TILE_SIZE * constants.SCALE + lineGap;
-        const lines = try text.tilesToLines(
-            self.allocator,
-            "Here is some long ass text that should wrap eventually into multiple lines",
-            constants.MAP_WIDTH_IN_TILES * constants.TILE_SIZE * constants.SCALE,
-            lineHeight,
-        );
-        const yOffset = (constants.MAP_HEIGHT_IN_TILES - 3) * constants.TILE_SIZE * constants.SCALE - (2 * lineGap);
-        for (lines.items) |line| {
-            for (line.items) |obj| {
-                setRects(obj.tile, obj.position.x, obj.position.y + yOffset);
-                _ = c.SDL_RenderCopyF(renderer, spriteTexture, &srcRect, &dstRect);
-            }
-            line.deinit();
-        }
-        lines.deinit();
-        // const padX = 2;
-        // var x: f32 = padX * tileSizeInPx;
-        // var y: f32 = 8 * tileSizeInPx;
-        // const letterTiles = try text.textToTile(self.allocator, "Hi, hast du vielleicht den Arsch auf? Ich denke, so wird das leider nichts mit uns!");
-        // for (letterTiles) |letterTile, i| {
-        //     setRects(letterTile, x, y);
-        //     _ = c.SDL_RenderCopyF(renderer, spriteTexture, &srcRect, &dstRect);
-        //     x += (@intToFloat(f32, letterTile.width)) * constants.SCALE;
-        //     if (x >= ((constants.MAP_WIDTH_IN_TILES - padX) * constants.TILE_SIZE * constants.SCALE)) {
-        //         x = padX * tileSizeInPx;
-        //         y += @intToFloat(f32, letterTile.height) * constants.SCALE;
-        //     }
-        // }
+        // renderText(self.allocator);
     }
 };
 

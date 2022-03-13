@@ -6,16 +6,60 @@ const constants = @import("../constants.zig");
 const Vec2 = @import("../math/vector.zig").Vec2;
 const vec2 = @import("../math/vector.zig").vec2;
 
-pub fn textToTile(allocator: *std.mem.Allocator, text: []const u8) ![]*const graphics.Tile {
+pub fn textToTile(allocator: *std.mem.Allocator, text: *const []const u8) ![]*const graphics.Tile {
     var result = try allocator.alloc(*const graphics.Tile, text.len);
-    for (text) |letter, i| {
+    for (text.*) |letter, i| {
         result[i] = letterToTile(letter);
     }
     return result;
 }
 
+pub fn bucketise(
+    comptime T: type,
+    allocator: *std.mem.Allocator,
+    lines: ArrayList(T),
+    size: u32,
+) !ArrayList(ArrayList(T)) {
+    var result = ArrayList(ArrayList(T)).init(allocator);
+    var lineIndex: u32 = 0;
+    var i: u32 = 0;
+    // Stop when we're out of lines
+    while (lineIndex < lines.items.len) {
+        // Create a new subarray
+        var newList: ArrayList(T) = try ArrayList(T).initCapacity(allocator, size);
+        i = 0;
+        while (i < size and lineIndex < lines.items.len) {
+            const item = lines.items[lineIndex];
+            try newList.append(item);
+            lineIndex += 1;
+            i += 1;
+        }
+        try result.append(newList);
+    }
+    return result;
+}
+
+test "bucketise works" {
+    std.log.debug("mofo", .{});
+    var example = ArrayList(i32).init(std.testing.allocator);
+    try example.append(1);
+    try example.append(2);
+    try example.append(1);
+    try example.append(2);
+    try example.append(1);
+    try example.append(2);
+    const result = try bucketise(i32, std.testing.allocator, example, 2);
+    std.log.debug("bucketised: {}", .{result});
+    try std.testing.expect(result.items.len == 4);
+}
+
 const ObjectList = ArrayList(graphics.Object);
-pub fn tilesToLines(allocator: *std.mem.Allocator, text: []const u8, lineWidth: f32, lineHeight: f32) !ArrayList(ObjectList) {
+pub fn tilesToLines(
+    allocator: *std.mem.Allocator,
+    text: *const []const u8,
+    lineWidth: f32,
+    lineHeight: f32,
+) !ArrayList(ObjectList) {
     // Result should be something like
     // [ ['a', ' ', 't', 'e', 'x', 't'],
     //   ['o', 'n' ' ', 'm', 'a', 'n', 'y'],
@@ -39,10 +83,11 @@ pub fn tilesToLines(allocator: *std.mem.Allocator, text: []const u8, lineWidth: 
             y += lineHeight;
         }
         const vOffset = tileVerticalOffset(t) * constants.SCALE;
-        try result.items[currLine].append(graphics.Object{
+        var object = graphics.Object{
             .position = vec2(x, y + vOffset),
             .tile = t,
-        });
+        };
+        try result.items[currLine].append(object);
         x += @intToFloat(f32, t.width * constants.SCALE);
     }
     return result;

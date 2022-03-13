@@ -6,6 +6,8 @@ const Level = @import("levels/testlevel.zig").Level;
 const input = @import("game/input.zig");
 const GameMidi = @import("game/game_midi.zig").GameMidi;
 const constants = @import("constants.zig");
+const game_state = @import("game/game_state.zig");
+const text_renderer = @import("graphics/text.zig");
 
 pub fn main() !void {
     var allocator = std.testing.allocator;
@@ -46,11 +48,13 @@ const Renderer = struct {
     now: u64 = undefined,
     last: u64 = 0,
     deltaTime: f64 = 0.0,
+    gameState: game_state.GameState = game_state.GameState.InGame,
     screen: *c.SDL_Window,
     renderer: *c.SDL_Renderer,
     spriteTexture: *c.SDL_Texture,
     backgroundTexture: *c.SDL_Texture,
     level: Level,
+    textRenderer: text_renderer.TextRenderer,
 
     pub fn deinit(self: @This()) void {
         defer c.SDL_DestroyWindow(self.screen);
@@ -72,7 +76,7 @@ const Renderer = struct {
             return error.SDLInitializationFailed;
         };
 
-        const renderer = c.SDL_CreateRenderer(screen, -1, c.SDL_RENDERER_ACCELERATED) orelse {
+        const renderer: *c.SDL_Renderer = c.SDL_CreateRenderer(screen, -1, c.SDL_RENDERER_ACCELERATED) orelse {
             c.SDL_Log("Unable to create renderer: %s", c.SDL_GetError());
             return error.SDLInitializationFailed;
         };
@@ -115,7 +119,7 @@ const Renderer = struct {
             return error.SDLInitializationFailed;
         };
         defer assert(c.SDL_RWclose(rw2) == 0);
-        const backgroundSurface = c.SDL_LoadBMP_RW(rw2, 0) orelse {
+        const backgroundSurface: *c.SDL_Surface = c.SDL_LoadBMP_RW(rw2, 0) orelse {
             c.SDL_Log("Unable to load bmp: %s", c.SDL_GetError());
             return error.SDLInitializationFailed;
         };
@@ -126,9 +130,15 @@ const Renderer = struct {
             return error.SDLInitializationFailed;
         };
 
+        const textRenderer =
+            try text_renderer.TextRenderer.init(
+            allocator,
+        );
+
         return Renderer{
             .screen = screen,
             .renderer = renderer,
+            .textRenderer = textRenderer,
             .spriteTexture = spriteTexture,
             .backgroundTexture = backgroundTexture,
             .now = c.SDL_GetPerformanceCounter(),
@@ -142,10 +152,18 @@ const Renderer = struct {
         self.deltaTime =
             @intToFloat(f64, (self.now - self.last)) /
             @intToFloat(f64, c.SDL_GetPerformanceFrequency());
-        self.level.updateAndRender(inputState, self.deltaTime);
-
         _ = c.SDL_RenderClear(self.renderer);
-        try self.level.render(self.renderer, self.backgroundTexture, self.spriteTexture);
+        self.level.updateAndRender(inputState, &self.gameState, self.deltaTime);
+
+        if (self.gameState == game_state.GameState.InGame) {
+            try self.level.render(
+                self.renderer,
+                self.backgroundTexture,
+                self.spriteTexture,
+            );
+        }
+        const text: []const u8 = "abracadabra simsala bim bim bim Heinz hat heute einen Hut auf. Das war ein guter Satz um dieses doofe ueberkompensierte Wort wegzubekommen. Blabla\ngeht newline\n eigentlich?";
+        try self.textRenderer.renderText(self.renderer, self.backgroundTexture, &text);
         c.SDL_RenderPresent(self.renderer);
         const delayBy = std.math.max(0, targetDeltaBetweenFrames - self.deltaTime);
         c.SDL_Delay(@floatToInt(u32, delayBy));

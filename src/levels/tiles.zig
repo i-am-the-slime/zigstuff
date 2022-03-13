@@ -14,6 +14,17 @@ pub const doorLockedTop = graphics.mkTile(8 * TS, 30 * TS, graphics.collideBotto
 
 // Letters and numbers
 
+// Text border
+pub const textBackgroundBlank = graphics.mkTile8(13 * TS, 30 * TS, null);
+pub const textBorderTopLeft = graphics.mkTile8(12 * TS, 29 * TS, null);
+pub const textBorderTop = graphics.mkTile8(13 * TS, 29 * TS, null);
+pub const textBorderTopRight = graphics.mkTile8(14 * TS, 29 * TS, null);
+pub const textBorderRight = graphics.mkTile8(14 * TS, 30 * TS, null);
+pub const textBorderBottomRight = graphics.mkTile8(14 * TS, 31 * TS, null);
+pub const textBorderBottom = graphics.mkTile8(13 * TS, 31 * TS, null);
+pub const textBorderBottomLeft = graphics.mkTile8(12 * TS, 31 * TS, null);
+pub const textBorderLeft = graphics.mkTile8(12 * TS, 30 * TS, null);
+
 // Numbers
 pub const num1 = graphics.mkTile8(19 * TS, 26 * TS, null);
 pub const num2 = graphics.mkTile8(20 * TS, 26 * TS, null);

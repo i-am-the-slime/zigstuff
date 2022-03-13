@@ -63,10 +63,10 @@ fn updatePlayer(
     const previousDirection = playerState.direction;
     playerState.directionVec.x = 0;
     playerState.directionVec.y = 0;
-    if (inputState.walkingUp) playerState.directionVec.y -= 1;
-    if (inputState.walkingDown) playerState.directionVec.y += 1;
-    if (inputState.walkingLeft) playerState.directionVec.x -= 1;
-    if (inputState.walkingRight) playerState.directionVec.x += 1;
+    if (inputState.up) playerState.directionVec.y -= 1;
+    if (inputState.down) playerState.directionVec.y += 1;
+    if (inputState.left) playerState.directionVec.x -= 1;
+    if (inputState.right) playerState.directionVec.x += 1;
     playerState.directionVec.normalise();
     // Calculate the new direction
     const newDirection = vec2ToDirection(&playerState.directionVec);
