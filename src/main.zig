@@ -7,6 +7,7 @@ const input = @import("game/input.zig");
 const GameMidi = @import("game/game_midi.zig").GameMidi;
 const constants = @import("constants.zig");
 const game_state = @import("game/game_state.zig");
+const dialogue = @import("game/dialogue.zig");
 const text_renderer = @import("graphics/text.zig");
 
 pub fn main() !void {
@@ -38,9 +39,16 @@ pub fn main() !void {
             }
         }
         gameInput.updateInputState(gameMidi.in != null and gameMidi.callbackAndData != null);
-        try rend.updateAndRender(gameInput.inputState);
+        try rend.updateAndRender(&gameInput);
     }
 }
+
+const text: []const u8 = "hi du";
+
+const convo: dialogue.Conversation = dialogue.Conversation{
+            .current = .{ .Line = &text },
+            .next = null,
+        };
 
 const Renderer = struct {
     const maxFPS = 120.0;
@@ -48,7 +56,10 @@ const Renderer = struct {
     now: u64 = undefined,
     last: u64 = 0,
     deltaTime: f64 = 0.0,
-    gameState: game_state.GameState = game_state.GameState.InGame,
+    // gameState: game_state.GameState = .{ .InGame = 0 },
+    gameState: game_state.GameState = game_state.GameState{
+        .Talking = &convo,
+    },
     screen: *c.SDL_Window,
     renderer: *c.SDL_Renderer,
     spriteTexture: *c.SDL_Texture,
@@ -146,24 +157,44 @@ const Renderer = struct {
         };
     }
 
-    fn updateAndRender(self: *@This(), inputState: input.State) !void {
+    fn updateAndRender(self: *@This(), gameInput: *input.GameInput) !void {
         self.last = self.now;
         self.now = c.SDL_GetPerformanceCounter();
         self.deltaTime =
             @intToFloat(f64, (self.now - self.last)) /
             @intToFloat(f64, c.SDL_GetPerformanceFrequency());
         _ = c.SDL_RenderClear(self.renderer);
-        self.level.updateAndRender(inputState, &self.gameState, self.deltaTime);
+        self.level.updateAndRender(gameInput.inputState, &self.gameState, self.deltaTime);
 
-        if (self.gameState == game_state.GameState.InGame) {
-            try self.level.render(
+        switch (self.gameState) {
+            .InGame => try self.level.render(
                 self.renderer,
                 self.backgroundTexture,
                 self.spriteTexture,
-            );
+            ),
+            .Talking => |conversation| {
+                switch (conversation.current) {
+                    .End => {
+                        self.gameState = game_state.GameState.InGame;
+                    },
+                    .Line => |line| {
+                        try self.textRenderer.renderText(self.renderer, self.backgroundTexture, line);
+                        if (!gameInput.previousInputState.action and gameInput.inputState.action) {
+                          if(conversation.next) |next| {
+                            self.gameState = game_state.GameState{ .Talking = next }; // { conversation.next };
+                          }
+                          else {
+                            self.gameState = game_state.GameState.InGame;
+                          }
+                        }
+                    },
+                    .Choice => {
+                        // TODO
+                        unreachable;
+                    }, 
+                }
+            },
         }
-        const text: []const u8 = "abracadabra simsala bim bim bim Heinz hat heute einen Hut auf. Das war ein guter Satz um dieses doofe ueberkompensierte Wort wegzubekommen. Blabla\ngeht newline\n eigentlich?";
-        try self.textRenderer.renderText(self.renderer, self.backgroundTexture, &text);
         c.SDL_RenderPresent(self.renderer);
         const delayBy = std.math.max(0, targetDeltaBetweenFrames - self.deltaTime);
         c.SDL_Delay(@floatToInt(u32, delayBy));

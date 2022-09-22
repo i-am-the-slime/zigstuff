@@ -18,7 +18,7 @@ pub fn build(b: *std.build.Builder) void {
 
     // SDL stuff for macOS
     exe.linkSystemLibrary("sdl2");
-    exe.addIncludeDir("lib/rtmidi/include");
+    exe.addIncludePath("lib/rtmidi/include");
     exe.addObjectFile("lib/rtmidi/lib/x64/librtmidi.a");
     exe.linkFramework("CoreMIDI");
     exe.linkFramework("CoreFoundation");

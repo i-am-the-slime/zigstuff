@@ -16,13 +16,16 @@ pub const State = packed struct {
 pub const GameInput = struct {
     const Self = @This();
     allocator: *std.mem.Allocator,
+    previousInputState: State,
     inputState: State,
 
     pub fn init(allocator: *std.mem.Allocator) !Self {
+        var previousInputState = State{};
         var inputState = State{};
 
         return Self{
             .allocator = allocator,
+            .previousInputState = previousInputState,
             .inputState = inputState,
         };
     }
@@ -37,6 +40,7 @@ pub const GameInput = struct {
 
         // Fallback to computer keyboard input for testing
         if (!midiInputActive) {
+            self.previousInputState = self.inputState;
             const sdlState: [*c]const u8 = sdl.SDL_GetKeyboardState(null);
             self.inputState.up = sdlState[sdl.SDL_SCANCODE_UP] != 0;
             self.inputState.down = sdlState[sdl.SDL_SCANCODE_DOWN] != 0;
@@ -50,6 +54,7 @@ pub const GameInput = struct {
 var onMidiMessagePtr: *game_midi.MIDIMessageCallback(*GameInput) = &onMidiMessage;
 
 pub fn onMidiMessage(msg: midi.MidiMessage, gi: *GameInput) void {
+    gi.previousInputState = gi.inputState;
     switch (msg) {
         .noteOn => |noteOn| {
             const tone = midi.midiKeyToTone(noteOn.key);

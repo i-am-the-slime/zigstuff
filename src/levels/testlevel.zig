@@ -53,7 +53,8 @@ pub const Level = struct {
         switch (gameState.*) {
             game_state.GameState.InGame => for (self.spriteLayer.sprites) |sprite|
                 sprite.update(inputState, deltaTime),
-            else => unreachable,
+            else => for (self.spriteLayer.sprites) |sprite|
+                sprite.update(inputState, deltaTime),
         }
     }
     pub fn render(

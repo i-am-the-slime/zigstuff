@@ -3,6 +3,6 @@ const std = @import("std");
 
 pub const GameState = union(enum) {
     InGame: u0,
-    Talking: *conversation.Conversation,
+    Talking: *const conversation.Conversation,
 };
 pub const GameStateTag = std.meta.Tag(GameState);
