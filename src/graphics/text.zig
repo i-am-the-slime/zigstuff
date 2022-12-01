@@ -65,8 +65,8 @@ pub const TextRenderer = struct {
                     renderer,
                     texture,
                     obj.tile,
-                    obj.position.x + xOffset,
-                    obj.position.y + yOffset,
+                    obj.position[0] + xOffset,
+                    obj.position[1] + yOffset,
                 );
             }
             line.deinit();

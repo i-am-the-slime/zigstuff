@@ -7,7 +7,7 @@ const startroom = @import("./startroom.zig");
 const AnimatedSprite = @import("../graphics/animated_sprite.zig").AnimatedSprite;
 const Keyframe = @import("../graphics/animated_sprite.zig").Keyframe;
 const player = @import("../game/player.zig");
-const Vec2 = @import("../math/vector.zig").Vec2;
+const Vec2 = @Vector(2, f32);
 const tile = @import("./tiles.zig");
 const text = @import("../game/text.zig");
 const renderText = @import("../graphics/text.zig").renderText;
@@ -52,9 +52,9 @@ pub const Level = struct {
     ) void {
         switch (gameState.*) {
             game_state.GameState.InGame => for (self.spriteLayer.sprites) |sprite|
-                sprite.update(inputState, deltaTime),
+                sprite.updateFn(sprite, inputState, deltaTime),
             else => for (self.spriteLayer.sprites) |sprite|
-                sprite.update(inputState, deltaTime),
+                sprite.updateFn(sprite, inputState, deltaTime),
         }
     }
     pub fn render(
@@ -64,7 +64,7 @@ pub const Level = struct {
         spriteTexture: *c.SDL_Texture,
     ) !void {
         for (self.backgroundLayer.objects) |object| {
-            setRects(object.tile, object.position.x * tileSizeInPx, object.position.y * tileSizeInPx);
+            setRects(object.tile, object.position[0] * tileSizeInPx, object.position[1] * tileSizeInPx);
             _ = c.SDL_RenderCopyF(renderer, backgroundTexture, &srcRect, &dstRect);
         }
         for (self.spriteLayer.sprites) |sprite| {

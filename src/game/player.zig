@@ -5,7 +5,7 @@ const constants = @import("../constants.zig");
 const TS = constants.TILE_SIZE;
 const input = @import("../game/input.zig");
 const std = @import("std");
-const Vec2 = @import("../math/vector.zig").Vec2;
+const Vec2 = @Vector(2, f32);
 
 var playerLookingDown = graphics.mkTile(0, 0, null);
 
@@ -24,14 +24,14 @@ pub var playerSprite = graphics.mkSprite(
 );
 
 var playerState = PlayerState{
-    .directionVec = Vec2{ .x = 0, .y = 0 },
+    .directionVec = Vec2{ 0, 0 },
     .direction = Direction.Down,
-    .speed = Vec2{ .x = 0, .y = 0 },
+    .speed = Vec2{  0, 0 },
     .animationFrame = 0,
 };
 
-const constantDeceleration: f32 = 1.0; // m/s/s
-const playerAcceleration: f32 = 0.825 + constantDeceleration; // m/s/s
+const constantDeceleration: f32 = 0.05; // m/s/s
+const playerAcceleration: f32 = 20.0; // m/s/s
 const maxSpeed: f32 = 1.35 * @intToFloat(f32, constants.SCALE); // m/s
 
 const tileSizeInMetres = 1.5;
@@ -61,13 +61,13 @@ fn updatePlayer(
     deltaTime: f64,
 ) void {
     const previousDirection = playerState.direction;
-    playerState.directionVec.x = 0;
-    playerState.directionVec.y = 0;
-    if (inputState.up) playerState.directionVec.y -= 1;
-    if (inputState.down) playerState.directionVec.y += 1;
-    if (inputState.left) playerState.directionVec.x -= 1;
-    if (inputState.right) playerState.directionVec.x += 1;
-    playerState.directionVec.normalise();
+    playerState.directionVec[0] = 0;
+    playerState.directionVec[1] = 0;
+    if (inputState.up) playerState.directionVec[1] -= 1;
+    if (inputState.down) playerState.directionVec[1] += 1;
+    if (inputState.left) playerState.directionVec[0] -= 1;
+    if (inputState.right) playerState.directionVec[0] += 1;
+    // playerState.directionVec = @splat(Vec2, playerState.directionVec) ;
     // Calculate the new direction
     const newDirection = vec2ToDirection(&playerState.directionVec);
     playerState.direction = newDirection orelse previousDirection;
@@ -85,30 +85,30 @@ fn updatePlayer(
     sprite.tile.srcY = nextFrame.srcY;
     // Calculate the new position
     // 1 px/frame + 1 px/frame * 0.1 ((px/frame)/frame)
-    const accelerateBy = tileSizeInMetres / (playerAcceleration * @floatCast(f32, deltaTime));
-    playerState.speed.x = std.math.clamp(
-        @mulAdd(f32, accelerateBy, playerState.directionVec.x, playerState.speed.x),
-        (-maxSpeed) * std.math.absFloat(playerState.directionVec.x),
-        maxSpeed * std.math.absFloat(playerState.directionVec.x),
+    const accelerateBy = tileSizeInMetres / (playerAcceleration * (1.0 - constantDeceleration) * @floatCast(f32, deltaTime));
+    playerState.speed[0] = std.math.clamp(
+        @mulAdd(f32, accelerateBy, playerState.directionVec[0], playerState.speed[0]),
+        (-maxSpeed) * @fabs(playerState.directionVec[0]),
+        maxSpeed * @fabs(playerState.directionVec[0]),
     );
-    playerState.speed.y = std.math.clamp(
-        @mulAdd(f32, accelerateBy, playerState.directionVec.y, playerState.speed.y),
-        (-maxSpeed) * std.math.absFloat(playerState.directionVec.y),
-        maxSpeed * std.math.absFloat(playerState.directionVec.y),
+    playerState.speed[1] = std.math.clamp(
+        @mulAdd(f32, accelerateBy, playerState.directionVec[1], playerState.speed[1]),
+        (-maxSpeed) * @fabs(playerState.directionVec[1]),
+        maxSpeed * @fabs(playerState.directionVec[1]),
     );
 
-    playerState.speed.x =
-        if (std.math.absFloat(playerState.speed.x) < 0.1) 0 else playerState.speed.x * constantDeceleration;
-    playerState.speed.y = if (std.math.absFloat(playerState.speed.y) < 0.1) 0 else playerState.speed.y * constantDeceleration;
+    playerState.speed[0]  =
+        if (@fabs(playerState.speed[0]) < 0.1) 0 else playerState.speed[0] * constantDeceleration;
+    playerState.speed[1] = if (@fabs(playerState.speed[1]) < 0.1) 0 else playerState.speed[1] * constantDeceleration;
 
-    const newPosX = sprite.posX + playerState.speed.x;
-    const newPosY = sprite.posY + playerState.speed.y;
+    const newPosX = sprite.posX + playerState.speed[0];
+    const newPosY = sprite.posY + playerState.speed[1];
     sprite.posX = newPosX;
     sprite.posY = newPosY;
 
     // Stop playing an animation if the player does not move
     // Maybe play an idle animation instead?
-    if (playerState.speed.x == 0 and playerState.speed.y == 0 and nextFrame.animationDone) {
+    if (playerState.speed[0] == 0 and playerState.speed[1] == 0 and nextFrame.animationDone) {
         playerAnimation.pause();
     } else {
         playerAnimation.unpause();
@@ -118,13 +118,13 @@ fn updatePlayer(
 const Direction = enum { Up, Down, Left, Right };
 
 inline fn vec2ToDirection(vec2: *Vec2) ?Direction {
-    if (vec2.x == 0 and vec2.y == 0)
+    if (vec2.*[0] == 0 and vec2.*[1] == 0)
         return null;
-    if (vec2.y < 0)
+    if (vec2.*[0] < 0)
         return Direction.Up;
-    if (vec2.y > 0)
+    if (vec2.*[0] > 0)
         return Direction.Down;
-    if (vec2.x < 0)
+    if (vec2.*[0] < 0)
         return Direction.Left;
     return Direction.Right;
 }

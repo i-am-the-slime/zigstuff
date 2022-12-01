@@ -58,7 +58,7 @@ pub fn onMidiMessage(msg: midi.MidiMessage, gi: *GameInput) void {
     switch (msg) {
         .noteOn => |noteOn| {
             const tone = midi.midiKeyToTone(noteOn.key);
-            std.debug.print("MIDI big boy: {s} \n", .{tone.note});
+            //std.debug.print("MIDI big boy: {s} \n", .{tone.note});
             switch (tone.note) {
                 midi.Note.C => gi.inputState.left = true,
                 midi.Note.D => gi.inputState.down = true,

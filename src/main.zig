@@ -11,8 +11,9 @@ const dialogue = @import("game/dialogue.zig");
 const text_renderer = @import("graphics/text.zig");
 
 pub fn main() !void {
-    var allocator = std.testing.allocator;
-    var gameInput = try input.GameInput.init(allocator);
+    var generalPurposeAllocator = std.heap.GeneralPurposeAllocator(.{}){};
+    var allocator = generalPurposeAllocator.allocator();
+    var gameInput = try input.GameInput.init(&allocator);
     defer gameInput.deinit();
     if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
         c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
@@ -21,14 +22,14 @@ pub fn main() !void {
     defer c.SDL_Quit();
 
     var gameMidi = try GameMidi(input.GameInput).init(
-        allocator,
+        &allocator,
         &input.onMidiMessage,
         &gameInput,
     );
 
     gameMidi.registerCallback();
 
-    var rend = try Renderer.init(allocator);
+    var rend = try Renderer.init(&allocator);
     defer rend.deinit();
     mainloop: while (true) {
         var event: c.SDL_Event = undefined;
@@ -95,9 +96,9 @@ const Renderer = struct {
         // assert(c.SDL_RenderSetScale(renderer, 4, 4) == 0);
 
         // Load the sprite sheet
-        const sheet = @embedFile("../assets/sheet.bmp");
+        const sheet = @embedFile("assets/sheet.bmp");
         const rw = c.SDL_RWFromConstMem(
-            @ptrCast(*const c_void, &sheet[0]),
+            @ptrCast(*const anyopaque, &sheet[0]),
             @intCast(c_int, sheet.len),
         ) orelse {
             c.SDL_Log("Unable to get RWFromConstMem: %s", c.SDL_GetError());
@@ -123,7 +124,7 @@ const Renderer = struct {
 
         // Load the background
         const rw2 = c.SDL_RWFromConstMem(
-            @ptrCast(*const c_void, &sheet[0]),
+            @ptrCast(*const anyopaque, &sheet[0]),
             @intCast(c_int, sheet.len),
         ) orelse {
             c.SDL_Log("Unable to get RWFromConstMem: %s", c.SDL_GetError());
@@ -191,7 +192,7 @@ const Renderer = struct {
                     .Choice => {
                         // TODO
                         unreachable;
-                    }, 
+                    },
                 }
             },
         }

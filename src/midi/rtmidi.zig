@@ -38,12 +38,12 @@ pub fn getMessage(in: c.RtMidiInPtr, msg: *[]u8) f64 {
     return result;
 }
 
-pub const RtMidiCallback = fn (f64, [*c]const u8, usize, ?*c_void) callconv(.C) void;
+pub const RtMidiCallback = fn (f64, [*c]const u8, usize, ?*anyopaque) callconv(.C) void;
 
 pub fn setCallback(
     in: c.RtMidiInPtr,
-    callback: RtMidiCallback,
-    userData: *c_void,
+    callback: * const RtMidiCallback,
+    userData: *anyopaque,
 ) void {
     c.rtmidi_in_set_callback(in, callback, userData);
 }

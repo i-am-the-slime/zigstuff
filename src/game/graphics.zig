@@ -1,6 +1,6 @@
 const constants = @import("../constants.zig");
 const input = @import("input.zig");
-const Vec2 = @import("../math/vector.zig").Vec2;
+const Vec2 = @Vector(2, f32);
 
 pub const Object = struct {
     const Self = @This();
@@ -8,14 +8,16 @@ pub const Object = struct {
     tile: *const Tile,
 };
 
+const UpdateFn = fn (self: *Sprite, inputState: input.State, deltaTime: f64) void;
+
 pub const Sprite = struct {
     posX: f32,
     posY: f32,
     tile: *Tile,
-    updateFn: fn (self: *@This(), inputState: input.State, deltaTime: f64) void,
-    pub fn update(self: *@This(), inputState: input.State, deltaTime: f64) void {
-        self.updateFn(self, inputState, deltaTime);
-    }
+    updateFn: *const UpdateFn,
+    // pub fn update(self: *@This(), inputState: input.State, deltaTime: f64) void {
+    //     self.updateFn(self, inputState, deltaTime);
+    // }
 };
 
 pub const Tile = struct {
@@ -77,7 +79,7 @@ pub inline fn mkSprite(
     x: f32,
     y: f32,
     tile: *Tile,
-    comptime update: fn (*Sprite, inputState: input.State, deltaTime: f64) void,
+    comptime update: *const UpdateFn,
 ) Sprite {
     return Sprite{ .posX = x, .posY = y, .tile = tile, .updateFn = update };
 }

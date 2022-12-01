@@ -60,7 +60,7 @@ pub fn GameMidi(comptime A: type) type {
 
 fn mkRtMidiCallback(comptime A: type) rtmidi.RtMidiCallback {
     return (struct {
-        fn f(_: f64, message: [*c]const u8, size: usize, userData: ?*c_void) callconv(.C) void {
+        fn f(_: f64, message: [*c]const u8, size: usize, userData: ?*anyopaque) callconv(.C) void {
             var callbackAndData = @ptrCast(
                 *CallbackAndData(A),
                 @alignCast(
@@ -68,7 +68,7 @@ fn mkRtMidiCallback(comptime A: type) rtmidi.RtMidiCallback {
                     userData.?,
                 ),
             );
-            const callback = callbackAndData.*.callback.*;
+            const callback = callbackAndData.*.callback;
             const dataPtr = callbackAndData.*.dataPtr;
             var slice = message[0..size];
             const maybeMsg = midi.decodeMessage(slice);

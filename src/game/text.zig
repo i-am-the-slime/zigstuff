@@ -3,8 +3,7 @@ const tile = @import("../levels/tiles.zig");
 const std = @import("std");
 const ArrayList = @import("std").ArrayList;
 const constants = @import("../constants.zig");
-const Vec2 = @import("../math/vector.zig").Vec2;
-const vec2 = @import("../math/vector.zig").vec2;
+const Vec2 = @Vector(2, f32);
 
 pub fn textToTile(allocator: *std.mem.Allocator, text: *const []const u8) ![]*const graphics.Tile {
     var result = try allocator.alloc(*const graphics.Tile, text.len);
@@ -20,13 +19,13 @@ pub fn bucketise(
     lines: ArrayList(T),
     size: u32,
 ) !ArrayList(ArrayList(T)) {
-    var result = ArrayList(ArrayList(T)).init(allocator);
+    var result = ArrayList(ArrayList(T)).init(allocator.*);
     var lineIndex: u32 = 0;
     var i: u32 = 0;
     // Stop when we're out of lines
     while (lineIndex < lines.items.len) {
         // Create a new subarray
-        var newList: ArrayList(T) = try ArrayList(T).initCapacity(allocator, size);
+        var newList: ArrayList(T) = try ArrayList(T).initCapacity(allocator.*, size);
         i = 0;
         while (i < size and lineIndex < lines.items.len) {
             const item = lines.items[lineIndex];
@@ -65,26 +64,26 @@ pub fn tilesToLines(
     //   ['o', 'n' ' ', 'm', 'a', 'n', 'y'],
     //   ['l', 'i', 'n', 'e', 's']
     // ]
-    var result = ArrayList(ObjectList).init(allocator);
+    var result = ArrayList(ObjectList).init(allocator.*);
     var textTiles = try textToTile(allocator, text);
     var x: f32 = 0;
     var y: f32 = 0;
     var currLine: u32 = 0;
     if (textTiles.len == 0) return result;
-    try result.append(ObjectList.init(allocator));
+    try result.append(ObjectList.init(allocator.*));
     for (textTiles) |t, tileIndex| {
         const wordWidth = @intToFloat(f32, calcWordWidth(textTiles[tileIndex..textTiles.len]));
         // Check if this word still fits on this line
         if (wordWidth + x > lineWidth) {
             // Start a new line
-            try result.append(ObjectList.init(allocator));
+            try result.append(ObjectList.init(allocator.*));
             x = 0;
             currLine += 1;
             y += lineHeight;
         }
         const vOffset = tileVerticalOffset(t) * constants.SCALE;
         var object = graphics.Object{
-            .position = vec2(x, y + vOffset),
+            .position = Vec2 { x, y + vOffset },
             .tile = t,
         };
         try result.items[currLine].append(object);
